@@ -1,0 +1,168 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  extractJsonLd,
+  findRecipe,
+  normalizeInstructions,
+  normalizeYield,
+  scrapeRecipeFromHtml,
+} from "./recipeScrape.js";
+
+function htmlWithJsonLd(obj) {
+  return `<html><head><script type="application/ld+json">${JSON.stringify(obj)}</script></head><body></body></html>`;
+}
+
+test("extractJsonLd parses a single script block", () => {
+  const html = htmlWithJsonLd({ "@type": "Recipe", name: "Soup" });
+  const blocks = extractJsonLd(html);
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].name, "Soup");
+});
+
+test("extractJsonLd skips malformed blocks and keeps valid ones", () => {
+  const html = `
+    <script type="application/ld+json">{not valid json}</script>
+    <script type="application/ld+json">{"@type": "Recipe", "name": "Stew"}</script>
+  `;
+  const blocks = extractJsonLd(html);
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].name, "Stew");
+});
+
+test("findRecipe locates a top-level Recipe object", () => {
+  const node = { "@type": "Recipe", name: "Chili" };
+  assert.equal(findRecipe(node).name, "Chili");
+});
+
+test("findRecipe searches inside @graph arrays", () => {
+  const node = {
+    "@graph": [
+      { "@type": "WebSite", name: "Some Blog" },
+      { "@type": "Recipe", name: "Tacos" },
+    ],
+  };
+  assert.equal(findRecipe(node).name, "Tacos");
+});
+
+test("findRecipe handles @type as an array", () => {
+  const node = { "@type": ["Recipe", "NewsArticle"], name: "Curry" };
+  assert.equal(findRecipe(node).name, "Curry");
+});
+
+test("findRecipe returns null when nothing matches", () => {
+  assert.equal(findRecipe({ "@type": "WebSite" }), null);
+  assert.equal(findRecipe(null), null);
+});
+
+test("normalizeYield extracts a number from a plain string", () => {
+  assert.equal(normalizeYield("4 servings"), 4);
+});
+
+test("normalizeYield extracts a number from an array of candidates", () => {
+  assert.equal(normalizeYield(["4 servings", "4"]), 4);
+});
+
+test("normalizeYield handles a bare number", () => {
+  assert.equal(normalizeYield(6), 6);
+});
+
+test("normalizeYield returns null when nothing parses", () => {
+  assert.equal(normalizeYield(null), null);
+  assert.equal(normalizeYield("Serves a crowd"), null);
+});
+
+test("normalizeInstructions handles an array of plain strings", () => {
+  assert.deepEqual(normalizeInstructions(["Preheat oven.", "Bake for 20 minutes."]), [
+    "Preheat oven.",
+    "Bake for 20 minutes.",
+  ]);
+});
+
+test("normalizeInstructions handles HowToStep objects", () => {
+  const steps = [
+    { "@type": "HowToStep", text: "Chop onions." },
+    { "@type": "HowToStep", text: "Saute until golden." },
+  ];
+  assert.deepEqual(normalizeInstructions(steps), ["Chop onions.", "Saute until golden."]);
+});
+
+test("normalizeInstructions flattens HowToSection groups", () => {
+  const sections = [
+    {
+      "@type": "HowToSection",
+      name: "For the sauce",
+      itemListElement: [
+        { "@type": "HowToStep", text: "Mix tomatoes and garlic." },
+        { "@type": "HowToStep", text: "Simmer 10 minutes." },
+      ],
+    },
+    {
+      "@type": "HowToSection",
+      name: "For the pasta",
+      itemListElement: [{ "@type": "HowToStep", text: "Boil pasta." }],
+    },
+  ];
+  assert.deepEqual(normalizeInstructions(sections), [
+    "Mix tomatoes and garlic.",
+    "Simmer 10 minutes.",
+    "Boil pasta.",
+  ]);
+});
+
+test("normalizeInstructions splits a single newline-separated string", () => {
+  assert.deepEqual(normalizeInstructions("Step one.\nStep two.\n\nStep three."), [
+    "Step one.",
+    "Step two.",
+    "Step three.",
+  ]);
+});
+
+test("normalizeInstructions strips embedded HTML tags", () => {
+  assert.deepEqual(normalizeInstructions([{ text: "<p>Preheat the oven to 400&deg;F.</p>" }]), [
+    "Preheat the oven to 400&deg;F.",
+  ]);
+});
+
+test("scrapeRecipeFromHtml returns a full structured recipe", () => {
+  const html = htmlWithJsonLd({
+    "@type": "Recipe",
+    name: "Weeknight Chili",
+    recipeYield: "6 servings",
+    recipeIngredient: ["2 cups flour", "1 lb ground beef", "Salt to taste"],
+    recipeInstructions: [
+      { "@type": "HowToStep", text: "Brown the beef." },
+      { "@type": "HowToStep", text: "Add remaining ingredients and simmer." },
+    ],
+  });
+
+  const recipe = scrapeRecipeFromHtml(html, "https://example.com/chili");
+  assert.equal(recipe.name, "Weeknight Chili");
+  assert.equal(recipe.sourceUrl, "https://example.com/chili");
+  assert.equal(recipe.servings, 6);
+  assert.equal(recipe.ingredientsRaw, "2 cups flour\n1 lb ground beef\nSalt to taste");
+  assert.equal(recipe.ingredientsParsed.length, 3);
+  assert.equal(recipe.ingredientsParsed[0].quantity, 2);
+  assert.deepEqual(recipe.directions, ["Brown the beef.", "Add remaining ingredients and simmer."]);
+});
+
+test("scrapeRecipeFromHtml returns null when no Recipe JSON-LD is present", () => {
+  const html = `<html><head><script type="application/ld+json">{"@type": "WebSite"}</script></head></html>`;
+  assert.equal(scrapeRecipeFromHtml(html, "https://example.com/none"), null);
+});
+
+test("scrapeRecipeFromHtml finds a Recipe nested in @graph among other blocks", () => {
+  const html = `
+    <html><head>
+    <script type="application/ld+json">{"@type": "BreadcrumbList"}</script>
+    <script type="application/ld+json">
+      {"@graph": [
+        {"@type": "WebSite", "name": "Blog"},
+        {"@type": "Recipe", "name": "Pancakes", "recipeIngredient": ["1 cup flour"], "recipeInstructions": "Mix and cook."}
+      ]}
+    </script>
+    </head></html>
+  `;
+  const recipe = scrapeRecipeFromHtml(html, "https://example.com/pancakes");
+  assert.equal(recipe.name, "Pancakes");
+  assert.deepEqual(recipe.directions, ["Mix and cook."]);
+});

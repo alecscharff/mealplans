@@ -1,4 +1,5 @@
-// Best-effort regex parser for Paprika's raw newline-separated ingredient lines.
+// Best-effort regex parser for raw newline-separated ingredient lines (from a scraped
+// recipe page's recipeIngredient list).
 // Turns "2 cups flour" into { quantity: 2, unit: "cup", name: "flour", raw: "2 cups flour" }.
 // Lines that don't start with a recognizable quantity (e.g. "Salt and pepper to taste")
 // fall back to { quantity: null, unit: null, name: raw, raw } so callers can still

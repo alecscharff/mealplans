@@ -1,7 +1,7 @@
 import { saveWeekState } from "../firestore.js";
 
 export function renderMenu(container, ctx, refresh) {
-  const { weekState, recipesByUid, currentWeekKey, db } = ctx;
+  const { weekState, recipesByUid, currentWeekKey, db, navigate } = ctx;
   let selected = weekState.picks.slice();
 
   const heading = document.createElement("p");
@@ -34,8 +34,11 @@ export function renderMenu(container, ctx, refresh) {
       card.className = "recipe-card" + (selected.includes(uid) ? " picked" : "");
 
       const info = document.createElement("div");
-      const name = document.createElement("div");
+      const name = document.createElement("button");
+      name.type = "button";
+      name.className = "recipe-name-link";
       name.textContent = recipe.name;
+      name.addEventListener("click", () => navigate("detail", { uid, from: "menu" }));
       info.appendChild(name);
       if (weekState.autoPickedIds.includes(uid) && weekState.picks.includes(uid)) {
         const badge = document.createElement("div");

@@ -39,6 +39,27 @@ test("buildGroceryList merges the same ingredient across both recipes and scales
   assert.equal(eggsItem.quantity, 4); // 2 * 2
 });
 
+test("buildGroceryList scales each recipe by its own servings when known", () => {
+  const recipes = [
+    {
+      uid: "r1",
+      name: "Serves 2",
+      servings: 2,
+      ingredientsParsed: [{ quantity: 1, unit: "cup", name: "rice", raw: "1 cup rice" }],
+    },
+    {
+      uid: "r2",
+      name: "Serves 8 (no servings data, falls back to base)",
+      ingredientsParsed: [{ quantity: 1, unit: "cup", name: "beans", raw: "1 cup beans" }],
+    },
+  ];
+
+  // familySize 4: recipe r1 (servings 2) scales x2, recipe r2 (no servings, base 4) scales x1.
+  const grouped = buildGroceryList(recipes, 4, 4);
+  assert.equal(grouped["Pantry"].find((i) => i.name === "rice").quantity, 2);
+  assert.equal(grouped["Pantry"].find((i) => i.name === "beans").quantity, 1);
+});
+
 test("buildGroceryList keeps unparseable ingredient lines separate, unscaled, tagged by recipe", () => {
   const recipes = [
     {

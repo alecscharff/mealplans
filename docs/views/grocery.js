@@ -12,7 +12,7 @@ function formatQuantity(item) {
 }
 
 export function renderGrocery(container, ctx, refresh) {
-  const { weekState, recipesByUid, settings, currentWeekKey, db } = ctx;
+  const { weekState, recipesByUid, settings, currentWeekKey, db, navigate } = ctx;
 
   if (weekState.picks.length < 2) {
     const notice = document.createElement("div");
@@ -23,6 +23,21 @@ export function renderGrocery(container, ctx, refresh) {
   }
 
   const pickedRecipes = weekState.picks.map((uid) => recipesByUid[uid]).filter(Boolean);
+
+  const recipesHeading = document.createElement("h3");
+  recipesHeading.textContent = "This week's recipes";
+  container.appendChild(recipesHeading);
+  const recipesList = document.createElement("div");
+  for (const recipe of pickedRecipes) {
+    const link = document.createElement("button");
+    link.type = "button";
+    link.className = "recipe-name-link";
+    link.textContent = recipe.name;
+    link.addEventListener("click", () => navigate("detail", { uid: recipe.uid, from: "grocery" }));
+    recipesList.appendChild(link);
+  }
+  container.appendChild(recipesList);
+
   const grouped = buildGroceryList(pickedRecipes, settings.familySize);
   const checks = { ...weekState.groceryChecks };
 

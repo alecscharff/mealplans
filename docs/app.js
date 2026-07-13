@@ -15,12 +15,21 @@ import { computeRollover } from "./shared/rollover.js";
 import { renderMenu } from "./views/menu.js";
 import { renderGrocery } from "./views/grocery.js";
 import { renderSettings } from "./views/settings.js";
+import { renderAddRecipe } from "./views/addRecipe.js";
+import { renderRecipeDetail } from "./views/recipeDetail.js";
 
 const appEl = document.getElementById("app");
 const statusEl = document.getElementById("status");
 
-const views = { menu: renderMenu, grocery: renderGrocery, settings: renderSettings };
+const views = {
+  menu: renderMenu,
+  grocery: renderGrocery,
+  settings: renderSettings,
+  addRecipe: renderAddRecipe,
+  detail: renderRecipeDetail,
+};
 let currentTab = "menu";
+let navParams = {};
 let ctx = null;
 
 async function loadState(db) {
@@ -50,7 +59,13 @@ async function loadState(db) {
   let weekState = await getWeekState(db, currentWeekKey);
   if (!weekState) {
     const candidates = generateCandidates(recipeCache.recipes, currentWeekKey, settings.shuffleSeed || "sunday-menu");
-    weekState = { candidates, picks: [], autoPickedIds: [], groceryChecks: {}, archived: false };
+    weekState = { candidates, picks: [], autoPickedIds: [], groceryChecks: {}, stepChecks: {}, archived: false };
+    await saveWeekState(db, currentWeekKey, weekState);
+  } else if (weekState.candidates.length === 0 && recipeCache.recipes.length > 0) {
+    // Bootstrap case: this week's state was created before any recipes had been
+    // added yet (e.g. a brand-new install). Regenerate now that some exist.
+    const candidates = generateCandidates(recipeCache.recipes, currentWeekKey, settings.shuffleSeed || "sunday-menu");
+    weekState = { ...weekState, candidates };
     await saveWeekState(db, currentWeekKey, weekState);
   }
 
@@ -77,15 +92,22 @@ async function refresh() {
   renderCurrentTab();
 }
 
+function navigate(view, params = {}) {
+  currentTab = view;
+  navParams = params;
+  renderCurrentTab();
+}
+
 function renderCurrentTab() {
   appEl.innerHTML = "";
-  views[currentTab](appEl, ctx, refresh);
+  views[currentTab](appEl, { ...ctx, navigate, params: navParams }, refresh);
 }
 
 function setupTabs() {
   document.querySelectorAll(".tab-button").forEach((btn) => {
     btn.addEventListener("click", () => {
       currentTab = btn.dataset.view;
+      navParams = {};
       document.querySelectorAll(".tab-button").forEach((b) => b.classList.toggle("active", b === btn));
       renderCurrentTab();
     });

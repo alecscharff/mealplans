@@ -136,3 +136,49 @@ form.settings-form input, form.settings-form select {
   font-size: 0.9rem;
   margin: 0.75rem 0;
 }
+
+button.recipe-name-link {
+  display: block;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0.25rem 0.5rem 0.25rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+  text-align: left;
+}
+
+.servings-label {
+  display: block;
+  margin: 1rem 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+.servings-label input {
+  width: 4rem;
+  padding: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-left: 0.4rem;
+}
+
+.step-list {
+  padding-left: 1.4rem;
+}
+
+.step-item {
+  padding: 0.35rem 0;
+  cursor: pointer;
+}
+
+.step-item.checked {
+  text-decoration: line-through;
+  color: #888;
+}
+
+.recipe-preview ul, .recipe-preview ol {
+  padding-left: 1.4rem;
+}

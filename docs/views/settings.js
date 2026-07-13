@@ -48,14 +48,6 @@ export function renderSettings(container, ctx, refresh) {
   deadlineLabel.appendChild(deadlineSelect);
   form.appendChild(deadlineLabel);
 
-  const categoryLabel = document.createElement("label");
-  categoryLabel.textContent = "Paprika category ID (set by the sync function's config)";
-  const categoryInput = document.createElement("input");
-  categoryInput.type = "text";
-  categoryInput.value = settings.paprikaCategoryId || "";
-  categoryLabel.appendChild(categoryInput);
-  form.appendChild(categoryLabel);
-
   const saveButton = document.createElement("button");
   saveButton.type = "submit";
   saveButton.className = "pick-button";
@@ -71,7 +63,6 @@ export function renderSettings(container, ctx, refresh) {
       cookDay1: Number(cookDay1Select.value),
       cookDay2: Number(cookDay2Select.value),
       deadlineDay: Number(deadlineSelect.value),
-      paprikaCategoryId: categoryInput.value.trim(),
     });
     await refresh();
   });

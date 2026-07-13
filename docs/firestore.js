@@ -38,14 +38,20 @@ export async function saveSettings(db, settings) {
 export async function getRecipeCache(db) {
   const snap = await getDoc(doc(db, "recipeCache", "main"));
   if (!snap.exists()) {
-    return { recipes: [], lastSynced: null };
+    return { recipes: [] };
   }
   return snap.data();
 }
 
+// Appends one recipe (already scraped + previewed by the client) to the cache.
+// recipeCache/main is seeded once at project setup, so this is always an update to an
+// existing doc, never a create — see firestore.rules for why that distinction matters.
+export async function addRecipe(db, recipe) {
+  const cache = await getRecipeCache(db);
+  await setDoc(doc(db, "recipeCache", "main"), { recipes: [...cache.recipes, recipe] }, { merge: true });
+}
+
 // Applies { [uid]: weekKey } lastCooked updates to the cached recipes array.
-// recipeCache is otherwise Cloud-Function-owned (full resync), but this narrow
-// update is allowed from the client — see firestore.rules for the rationale.
 export async function updateRecipeLastCooked(db, lastCookedUpdates) {
   if (Object.keys(lastCookedUpdates).length === 0) return;
   const cache = await getRecipeCache(db);

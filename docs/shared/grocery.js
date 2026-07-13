@@ -30,13 +30,16 @@ function mergeKey(item) {
   return `${item.name.trim().toLowerCase()}|${item.unit || ""}`;
 }
 
-// recipes: [{ uid, name, ingredientsParsed: [{quantity, unit, name, raw}] }]
+// recipes: [{ uid, name, servings?, ingredientsParsed: [{quantity, unit, name, raw}] }]
+// Each recipe is scaled by its own known serving count when available (familySize /
+// recipe.servings), falling back to baseFamilySize for recipes with no servings data
+// (e.g. a source page that didn't publish a yield).
 export function buildGroceryList(recipes, familySize, baseFamilySize = 4) {
-  const scale = familySize / baseFamilySize;
   const merged = new Map();
   const unscalable = [];
 
   for (const recipe of recipes) {
+    const scale = familySize / (recipe.servings || baseFamilySize);
     for (const item of recipe.ingredientsParsed) {
       if (item.quantity == null) {
         unscalable.push({ ...item, recipeName: recipe.name });
