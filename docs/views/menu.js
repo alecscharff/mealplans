@@ -1,5 +1,6 @@
 import { saveWeekState } from "../firestore.js";
 import { generateCandidates } from "../shared/candidates.js";
+import { deriveTags } from "../shared/recipeTags.js";
 import { createRecipeThumb } from "./recipeImage.js";
 import { formatWeekLabel } from "./weekLabel.js";
 
@@ -67,6 +68,22 @@ function renderWeekSection({ weekKey, weekState, upcomingWeeks, recipesByUid, re
       name.textContent = recipe.name;
       name.addEventListener("click", () => navigate("detail", { uid, from: "menu" }));
       info.appendChild(name);
+
+      const meta = document.createElement("div");
+      meta.className = "recipe-meta";
+      if (recipe.totalTimeMinutes) {
+        const time = document.createElement("span");
+        time.className = "recipe-time";
+        time.textContent = `${recipe.totalTimeMinutes} min`;
+        meta.appendChild(time);
+      }
+      for (const tag of deriveTags(recipe)) {
+        const tagEl = document.createElement("span");
+        tagEl.className = "recipe-tag";
+        tagEl.textContent = tag;
+        meta.appendChild(tagEl);
+      }
+      info.appendChild(meta);
 
       if (!selected.includes(uid)) {
         const badge = document.createElement("div");

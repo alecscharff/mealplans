@@ -11,7 +11,10 @@ function itemKey(category, item) {
 function formatQuantity(item) {
   if (item.quantity == null) return item.raw;
   const rounded = Math.round(item.quantity * 100) / 100;
-  return `${rounded}${item.unit ? " " + item.unit : ""} ${item.name}`;
+  // "unit" is HelloFresh's placeholder for "whole item, no real measurement" — the
+  // word itself adds nothing for shopping ("2 unit Onion"), so it's just omitted.
+  const unit = item.unit && item.unit !== "unit" ? ` ${item.unit}` : "";
+  return `${rounded}${unit} ${item.name}`;
 }
 
 export function renderGrocery(container, ctx, refresh) {

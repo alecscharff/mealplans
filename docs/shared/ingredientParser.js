@@ -87,6 +87,11 @@ const UNIT_ALIASES = {
   stalks: "stalk",
   sprig: "sprig",
   sprigs: "sprig",
+  // HelloFresh's placeholder for "whole item, no measurement" (e.g. "1 unit Onion").
+  // Recognized here so it doesn't leak into the ingredient name; display code omits
+  // it since "unit" itself carries no useful shopping information.
+  unit: "unit",
+  units: "unit",
 };
 
 function normalizeFractions(str) {

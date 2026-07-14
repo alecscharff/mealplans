@@ -6,6 +6,8 @@ import {
   normalizeImage,
   normalizeInstructions,
   normalizeYield,
+  parseDurationMinutes,
+  normalizeTotalTimeMinutes,
   scrapeRecipeFromHtml,
 } from "./recipeScrape.js";
 
@@ -70,6 +72,36 @@ test("normalizeYield handles a bare number", () => {
 test("normalizeYield returns null when nothing parses", () => {
   assert.equal(normalizeYield(null), null);
   assert.equal(normalizeYield("Serves a crowd"), null);
+});
+
+test("parseDurationMinutes handles minutes-only durations", () => {
+  assert.equal(parseDurationMinutes("PT35M"), 35);
+});
+
+test("parseDurationMinutes handles hours and minutes", () => {
+  assert.equal(parseDurationMinutes("PT1H10M"), 70);
+});
+
+test("parseDurationMinutes handles hours-only durations", () => {
+  assert.equal(parseDurationMinutes("PT2H"), 120);
+});
+
+test("parseDurationMinutes returns null for invalid or missing input", () => {
+  assert.equal(parseDurationMinutes(null), null);
+  assert.equal(parseDurationMinutes(""), null);
+  assert.equal(parseDurationMinutes("35 minutes"), null);
+});
+
+test("normalizeTotalTimeMinutes prefers totalTime", () => {
+  assert.equal(normalizeTotalTimeMinutes({ totalTime: "PT40M", prepTime: "PT10M", cookTime: "PT20M" }), 40);
+});
+
+test("normalizeTotalTimeMinutes falls back to prepTime + cookTime", () => {
+  assert.equal(normalizeTotalTimeMinutes({ prepTime: "PT10M", cookTime: "PT20M" }), 30);
+});
+
+test("normalizeTotalTimeMinutes returns null when nothing is available", () => {
+  assert.equal(normalizeTotalTimeMinutes({}), null);
 });
 
 test("normalizeImage handles a plain string URL", () => {
@@ -151,12 +183,40 @@ test("normalizeInstructions strips embedded HTML tags", () => {
   ]);
 });
 
+test("normalizeInstructions splits a <ul><li> step into separate discrete steps", () => {
+  const step = {
+    "@type": "HowToStep",
+    text: "<ul><li><p>Adjust rack and preheat oven to 425 degrees.</p></li><li><p>Dice potatoes into 1-inch pieces.</p></li></ul>",
+  };
+  assert.deepEqual(normalizeInstructions([step]), [
+    "Adjust rack and preheat oven to 425 degrees.",
+    "Dice potatoes into 1-inch pieces.",
+  ]);
+});
+
+test("normalizeInstructions preserves <strong> ingredient mentions as **bold** markers", () => {
+  const step = { "@type": "HowToStep", text: "Season the <strong>chicken</strong> with <strong>salt</strong>." };
+  assert.deepEqual(normalizeInstructions([step]), ["Season the **chicken** with **salt**."]);
+});
+
+test("normalizeInstructions combines bullet-splitting and bold marking together", () => {
+  const step = {
+    "@type": "HowToStep",
+    text: "<ul><li>Pat <strong>chicken</strong> dry.</li><li>Season with <strong>salt</strong> and <strong>pepper</strong>.</li></ul>",
+  };
+  assert.deepEqual(normalizeInstructions([step]), [
+    "Pat **chicken** dry.",
+    "Season with **salt** and **pepper**.",
+  ]);
+});
+
 test("scrapeRecipeFromHtml returns a full structured recipe", () => {
   const html = htmlWithJsonLd({
     "@type": "Recipe",
     name: "Weeknight Chili",
     recipeYield: "6 servings",
     image: [{ "@type": "ImageObject", url: "https://example.com/chili.jpg" }],
+    totalTime: "PT35M",
     recipeIngredient: ["2 cups flour", "1 lb ground beef", "Salt to taste"],
     recipeInstructions: [
       { "@type": "HowToStep", text: "Brown the beef." },
@@ -169,6 +229,7 @@ test("scrapeRecipeFromHtml returns a full structured recipe", () => {
   assert.equal(recipe.sourceUrl, "https://example.com/chili");
   assert.equal(recipe.servings, 6);
   assert.equal(recipe.image, "https://example.com/chili.jpg");
+  assert.equal(recipe.totalTimeMinutes, 35);
   assert.equal(recipe.ingredientsRaw, "2 cups flour\n1 lb ground beef\nSalt to taste");
   assert.equal(recipe.ingredientsParsed.length, 3);
   assert.equal(recipe.ingredientsParsed[0].quantity, 2);

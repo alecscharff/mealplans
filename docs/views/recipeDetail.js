@@ -1,11 +1,15 @@
 import { saveWeekState } from "../firestore.js";
 import { createRecipeThumb } from "./recipeImage.js";
 import { createSpiceBlendNote } from "./spiceBlendNote.js";
+import { appendBoldMarkedText } from "./boldText.js";
 
 function formatScaledQuantity(item, scale) {
   if (item.quantity == null) return item.raw;
   const rounded = Math.round(item.quantity * scale * 100) / 100;
-  return `${rounded}${item.unit ? " " + item.unit : ""} ${item.name}`;
+  // "unit" is HelloFresh's placeholder for "whole item, no real measurement" — omit
+  // the word itself, since "2 unit Onion" reads worse than just "2 Onion".
+  const unit = item.unit && item.unit !== "unit" ? ` ${item.unit}` : "";
+  return `${rounded}${unit} ${item.name}`;
 }
 
 export function renderRecipeDetail(container, ctx, refresh) {
@@ -103,7 +107,7 @@ export function renderRecipeDetail(container, ctx, refresh) {
   recipe.directions.forEach((step, i) => {
     const li = document.createElement("li");
     li.className = "step-item" + (stepChecks[i] ? " checked" : "");
-    li.textContent = step;
+    appendBoldMarkedText(li, step);
     li.addEventListener("click", async () => {
       stepChecks[i] = !stepChecks[i];
       li.classList.toggle("checked", stepChecks[i]);

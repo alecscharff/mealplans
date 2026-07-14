@@ -1,6 +1,7 @@
 import { scrapeRecipeUrl } from "../functionsClient.js";
 import { addRecipe, updateRecipe, deleteRecipe } from "../firestore.js";
 import { createRecipeThumb } from "./recipeImage.js";
+import { appendBoldMarkedText } from "./boldText.js";
 
 export function renderAddRecipe(container, ctx, refresh) {
   const { db, recipeCache, navigate } = ctx;
@@ -47,10 +48,15 @@ export function renderAddRecipe(container, ctx, refresh) {
     name.textContent = scraped.name;
     card.appendChild(name);
 
-    if (scraped.servings) {
-      const servings = document.createElement("p");
-      servings.textContent = `Serves ${scraped.servings}`;
-      card.appendChild(servings);
+    if (scraped.servings || scraped.totalTimeMinutes) {
+      const meta = document.createElement("p");
+      meta.textContent = [
+        scraped.servings ? `Serves ${scraped.servings}` : null,
+        scraped.totalTimeMinutes ? `${scraped.totalTimeMinutes} min` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      card.appendChild(meta);
     }
 
     const ingredientsHeading = document.createElement("h4");
@@ -70,7 +76,7 @@ export function renderAddRecipe(container, ctx, refresh) {
     const stepsList = document.createElement("ol");
     for (const step of scraped.directions) {
       const li = document.createElement("li");
-      li.textContent = step;
+      appendBoldMarkedText(li, step);
       stepsList.appendChild(li);
     }
     card.appendChild(stepsList);
@@ -88,6 +94,7 @@ export function renderAddRecipe(container, ctx, refresh) {
         sourceUrl: scraped.sourceUrl,
         servings: scraped.servings,
         image: scraped.image,
+        totalTimeMinutes: scraped.totalTimeMinutes,
         ingredientsRaw: scraped.ingredientsRaw,
         ingredientsParsed: scraped.ingredientsParsed,
         directions: scraped.directions,

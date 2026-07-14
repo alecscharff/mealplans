@@ -71,6 +71,7 @@ export function renderEditRecipe(container, ctx, refresh) {
         nameInput.value = fresh.name;
         imageInput.value = fresh.image || "";
         servingsInput.value = fresh.servings || "";
+        timeInput.value = fresh.totalTimeMinutes || "";
         ingredientsTextarea.value = fresh.ingredientsRaw;
         directionsTextarea.value = fresh.directions.join("\n");
         refreshStatus.textContent = " Pulled the latest from the source page — review below, then Save.";
@@ -93,6 +94,15 @@ export function renderEditRecipe(container, ctx, refresh) {
   servingsInput.value = recipe.servings || "";
   servingsLabel.appendChild(servingsInput);
   form.appendChild(servingsLabel);
+
+  const timeLabel = document.createElement("label");
+  timeLabel.textContent = "Cook time (minutes)";
+  const timeInput = document.createElement("input");
+  timeInput.type = "number";
+  timeInput.min = "1";
+  timeInput.value = recipe.totalTimeMinutes || "";
+  timeLabel.appendChild(timeInput);
+  form.appendChild(timeLabel);
 
   const ingredientsLabel = document.createElement("label");
   ingredientsLabel.textContent = "Ingredients (one per line)";
@@ -125,6 +135,7 @@ export function renderEditRecipe(container, ctx, refresh) {
       name: nameInput.value.trim(),
       image: imageInput.value.trim() || null,
       servings: servingsInput.value ? Number(servingsInput.value) : null,
+      totalTimeMinutes: timeInput.value ? Number(timeInput.value) : null,
       ingredientsRaw,
       ingredientsParsed: parseIngredientsRaw(ingredientsRaw),
       directions: directionsTextarea.value

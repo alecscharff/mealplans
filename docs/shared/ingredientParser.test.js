@@ -11,6 +11,15 @@ test("parses a simple whole-number quantity with unit", () => {
   });
 });
 
+test("parses HelloFresh's 'unit' placeholder as a recognized unit, not part of the name", () => {
+  assert.deepEqual(parseIngredientLine("2 unit Chickpeas"), {
+    quantity: 2,
+    unit: "unit",
+    name: "Chickpeas",
+    raw: "2 unit Chickpeas",
+  });
+});
+
 test("parses a mixed-number quantity", () => {
   const result = parseIngredientLine("1 1/2 lb chicken breast");
   assert.equal(result.quantity, 1.5);

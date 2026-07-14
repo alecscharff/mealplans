@@ -18,6 +18,35 @@ function stripHtml(str) {
     .trim();
 }
 
+// Converts <strong>/<b> spans to **word** markers (parsed into real <strong>
+// elements at render time — see docs/views/boldText.js) and strips every other tag.
+// Never passes raw HTML through: only this narrow, non-HTML marker syntax survives,
+// so there's no injection surface even though the source is a third-party page.
+function htmlToBoldMarkedText(html) {
+  const withMarkers = String(html).replace(
+    /<(strong|b)\b[^>]*>([\s\S]*?)<\/\1>/gi,
+    (_m, _tag, inner) => `**${inner}**`
+  );
+  return stripHtml(withMarkers);
+}
+
+// A single HowToStep's text sometimes contains its own <ul><li> sub-steps (e.g. one
+// HelloFresh "step" bundling 2-3 discrete actions) — split those into separate steps
+// instead of flattening them into one run-on line. Falls back to the whole text as
+// one step when there's no <li> structure.
+function splitStepBullets(html) {
+  const items = [];
+  const liRe = /<li\b[^>]*>([\s\S]*?)<\/li>/gi;
+  let match;
+  while ((match = liRe.exec(html))) {
+    const text = htmlToBoldMarkedText(match[1]);
+    if (text) items.push(text);
+  }
+  if (items.length > 0) return items;
+  const whole = htmlToBoldMarkedText(html);
+  return whole ? [whole] : [];
+}
+
 export function extractJsonLd(html) {
   const blocks = [];
   const re = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
@@ -58,7 +87,7 @@ function flattenInstructions(node) {
   if (typeof node === "string") {
     return node
       .split(/\r?\n+/)
-      .map((line) => stripHtml(line))
+      .flatMap((line) => splitStepBullets(line))
       .filter((line) => line.length > 0);
   }
   if (Array.isArray(node)) {
@@ -66,8 +95,8 @@ function flattenInstructions(node) {
   }
   if (typeof node === "object") {
     if (Array.isArray(node.itemListElement)) return flattenInstructions(node.itemListElement);
-    if (node.text) return [stripHtml(node.text)];
-    if (node.name) return [stripHtml(node.name)];
+    if (node.text) return splitStepBullets(node.text);
+    if (node.name) return [htmlToBoldMarkedText(node.name)];
   }
   return [];
 }
@@ -98,6 +127,27 @@ export function normalizeYield(recipeYield) {
   return null;
 }
 
+// Parses an ISO 8601 duration like "PT35M" or "PT1H10M" into whole minutes.
+export function parseDurationMinutes(duration) {
+  if (!duration || typeof duration !== "string") return null;
+  const match = duration.match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/);
+  if (!match) return null;
+  const hours = match[1] ? parseInt(match[1], 10) : 0;
+  const minutes = match[2] ? parseInt(match[2], 10) : 0;
+  if (hours === 0 && minutes === 0 && !match[1] && !match[2]) return null;
+  return hours * 60 + minutes;
+}
+
+// Prefers totalTime; falls back to summing prepTime + cookTime when a page only
+// publishes those separately.
+export function normalizeTotalTimeMinutes(recipe) {
+  const total = parseDurationMinutes(recipe.totalTime);
+  if (total != null) return total;
+  const prep = parseDurationMinutes(recipe.prepTime) || 0;
+  const cook = parseDurationMinutes(recipe.cookTime) || 0;
+  return prep + cook > 0 ? prep + cook : null;
+}
+
 export function scrapeRecipeFromHtml(html, sourceUrl) {
   const blocks = extractJsonLd(html);
   let recipe = null;
@@ -117,6 +167,7 @@ export function scrapeRecipeFromHtml(html, sourceUrl) {
     sourceUrl,
     servings: normalizeYield(recipe.recipeYield),
     image: normalizeImage(recipe.image),
+    totalTimeMinutes: normalizeTotalTimeMinutes(recipe),
     ingredientsRaw,
     ingredientsParsed: parseIngredientsRaw(ingredientsRaw),
     directions: normalizeInstructions(recipe.recipeInstructions),
