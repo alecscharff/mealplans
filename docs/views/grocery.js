@@ -3,6 +3,7 @@ import { saveWeekState } from "../firestore.js";
 import { createRecipeThumb } from "./recipeImage.js";
 import { createSpiceBlendNote } from "./spiceBlendNote.js";
 import { formatWeekLabel } from "./weekLabel.js";
+import { formatQuantityLine } from "../shared/quantityFormat.js";
 
 function itemKey(category, item) {
   return `${category}::${item.name}::${item.unit || ""}`;
@@ -10,11 +11,7 @@ function itemKey(category, item) {
 
 function formatQuantity(item) {
   if (item.quantity == null) return item.raw;
-  const rounded = Math.round(item.quantity * 100) / 100;
-  // "unit" is HelloFresh's placeholder for "whole item, no real measurement" — the
-  // word itself adds nothing for shopping ("2 unit Onion"), so it's just omitted.
-  const unit = item.unit && item.unit !== "unit" ? ` ${item.unit}` : "";
-  return `${rounded}${unit} ${item.name}`;
+  return formatQuantityLine(item.name, item.quantity, item.unit);
 }
 
 export function renderGrocery(container, ctx, refresh) {

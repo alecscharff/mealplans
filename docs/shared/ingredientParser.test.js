@@ -12,11 +12,40 @@ test("parses a simple whole-number quantity with unit", () => {
 });
 
 test("parses HelloFresh's 'unit' placeholder as a recognized unit, not part of the name", () => {
-  assert.deepEqual(parseIngredientLine("2 unit Chickpeas"), {
+  assert.deepEqual(parseIngredientLine("2 unit Onion"), {
     quantity: 2,
     unit: "unit",
-    name: "Chickpeas",
-    raw: "2 unit Chickpeas",
+    name: "Onion",
+    raw: "2 unit Onion",
+  });
+});
+
+test("maps a known canned/packaged good's 'unit' placeholder to its real container", () => {
+  const result = parseIngredientLine("2 unit Chickpeas");
+  assert.equal(result.unit, "can");
+  assert.equal(result.name, "Chickpeas");
+});
+
+test("maps a stock concentrate's 'unit' placeholder to 'packet'", () => {
+  const result = parseIngredientLine("3 unit Chicken Stock Concentrate");
+  assert.equal(result.unit, "packet");
+  assert.equal(result.name, "Chicken Stock Concentrate");
+});
+
+test("strips a redundant parenthetical unit abbreviation from the name", () => {
+  const result = parseIngredientLine("2 tablespoon (tbsp) Butter");
+  assert.equal(result.quantity, 2);
+  assert.equal(result.unit, "tbsp");
+  assert.equal(result.name, "Butter");
+});
+
+test("strips a dangling unit-only phrase with no quantity ('to taste' seasonings)", () => {
+  const result = parseIngredientLine("teaspoon (tsp) Salt");
+  assert.deepEqual(result, {
+    quantity: null,
+    unit: null,
+    name: "Salt",
+    raw: "teaspoon (tsp) Salt",
   });
 });
 

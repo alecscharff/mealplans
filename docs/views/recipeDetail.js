@@ -2,14 +2,11 @@ import { saveWeekState } from "../firestore.js";
 import { createRecipeThumb } from "./recipeImage.js";
 import { createSpiceBlendNote } from "./spiceBlendNote.js";
 import { appendBoldMarkedText } from "./boldText.js";
+import { formatQuantityLine } from "../shared/quantityFormat.js";
 
 function formatScaledQuantity(item, scale) {
   if (item.quantity == null) return item.raw;
-  const rounded = Math.round(item.quantity * scale * 100) / 100;
-  // "unit" is HelloFresh's placeholder for "whole item, no real measurement" — omit
-  // the word itself, since "2 unit Onion" reads worse than just "2 Onion".
-  const unit = item.unit && item.unit !== "unit" ? ` ${item.unit}` : "";
-  return `${rounded}${unit} ${item.name}`;
+  return formatQuantityLine(item.name, item.quantity * scale, item.unit);
 }
 
 export function renderRecipeDetail(container, ctx, refresh) {

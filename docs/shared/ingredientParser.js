@@ -5,6 +5,8 @@
 // fall back to { quantity: null, unit: null, name: raw, raw } so callers can still
 // display them, just without merge/scale support.
 
+import { packagingUnitFor } from "./packagingUnits.js";
+
 const UNICODE_FRACTIONS = {
   "¼": 0.25,
   "½": 0.5,
@@ -138,7 +140,11 @@ function consumeUnit(str) {
   if (!match) return null;
   const canonical = UNIT_ALIASES[match[1].toLowerCase()];
   if (!canonical) return null;
-  return { unit: canonical, rest: str.slice(match[0].length) };
+  // Some source pages spell out the unit and then repeat its abbreviation in
+  // parentheses right after (e.g. "teaspoon (tsp) Salt") — drop that redundant
+  // parenthetical too, or it leaks into the ingredient name as "(tsp) Salt".
+  const rest = str.slice(match[0].length).replace(/^\([a-zA-Z.]+\)\s*/, "");
+  return { unit: canonical, rest };
 }
 
 export function parseIngredientLine(rawLine) {
@@ -147,7 +153,12 @@ export function parseIngredientLine(rawLine) {
 
   const quantityResult = consumeQuantity(normalized);
   if (!quantityResult) {
-    return { quantity: null, unit: null, name: raw, raw };
+    // HelloFresh lists some "to taste" seasonings with a dangling unit phrase and no
+    // quantity at all (e.g. "teaspoon (tsp) Salt") — strip that phrase so the name is
+    // just "Salt", not the whole raw unit phrase.
+    const unitOnlyResult = consumeUnit(normalized + " ");
+    const name = (unitOnlyResult ? unitOnlyResult.rest : normalized).trim();
+    return { quantity: null, unit: null, name: name || raw, raw };
   }
 
   let { value: quantity, rest } = quantityResult;
@@ -160,9 +171,17 @@ export function parseIngredientLine(rawLine) {
     rest = unitResult.rest.trim();
   }
 
-  const name = rest.replace(/^of\s+/i, "").trim();
+  const name = rest.replace(/^of\s+/i, "").trim() || raw;
 
-  return { quantity, unit, name: name || raw, raw };
+  // HelloFresh's "unit" placeholder covers both truly discrete whole items ("1 unit
+  // Onion") and packaged/canned goods ("1 unit Chickpeas") with no distinction. Known
+  // packaged names get their real container noun instead, since a bare count doesn't
+  // say what to look for on the shelf.
+  if (unit === "unit") {
+    unit = packagingUnitFor(name) || unit;
+  }
+
+  return { quantity, unit, name, raw };
 }
 
 export function parseIngredientsRaw(ingredientsRaw) {
