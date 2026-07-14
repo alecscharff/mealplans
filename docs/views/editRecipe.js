@@ -1,5 +1,6 @@
 import { updateRecipe, deleteRecipe } from "../firestore.js";
 import { parseIngredientsRaw } from "../shared/ingredientParser.js";
+import { scrapeRecipeUrl } from "../functionsClient.js";
 
 export function renderEditRecipe(container, ctx, refresh) {
   const { recipesByUid, db, navigate, params } = ctx;
@@ -53,6 +54,36 @@ export function renderEditRecipe(container, ctx, refresh) {
   imageInput.value = recipe.image || "";
   imageLabel.appendChild(imageInput);
   form.appendChild(imageLabel);
+
+  if (recipe.sourceUrl) {
+    const refreshRow = document.createElement("div");
+    const refreshButton = document.createElement("button");
+    refreshButton.type = "button";
+    refreshButton.className = "pick-button";
+    refreshButton.textContent = "Refresh from source";
+    const refreshStatus = document.createElement("span");
+    refreshStatus.className = "note-inline";
+    refreshButton.addEventListener("click", async () => {
+      refreshButton.disabled = true;
+      refreshStatus.textContent = " Fetching…";
+      try {
+        const fresh = await scrapeRecipeUrl(recipe.sourceUrl);
+        nameInput.value = fresh.name;
+        imageInput.value = fresh.image || "";
+        servingsInput.value = fresh.servings || "";
+        ingredientsTextarea.value = fresh.ingredientsRaw;
+        directionsTextarea.value = fresh.directions.join("\n");
+        refreshStatus.textContent = " Pulled the latest from the source page — review below, then Save.";
+      } catch (err) {
+        refreshStatus.textContent = ` Couldn't refresh: ${err.message}`;
+      } finally {
+        refreshButton.disabled = false;
+      }
+    });
+    refreshRow.appendChild(refreshButton);
+    refreshRow.appendChild(refreshStatus);
+    form.appendChild(refreshRow);
+  }
 
   const servingsLabel = document.createElement("label");
   servingsLabel.textContent = "Servings";
