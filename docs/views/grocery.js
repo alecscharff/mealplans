@@ -19,7 +19,7 @@ export function renderGrocery(container, ctx, refresh) {
   if (weekState.picks.length < 2) {
     const notice = document.createElement("div");
     notice.className = "notice";
-    notice.textContent = "Pick 2 recipes on the This Week tab to generate a grocery list.";
+    notice.textContent = "Pick 2 recipes for this week on the Menu tab to generate a grocery list.";
     container.appendChild(notice);
     return;
   }

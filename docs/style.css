@@ -172,6 +172,39 @@ a {
   margin-top: 0.3rem;
 }
 
+.recipe-card .badge.badge-alt {
+  color: var(--ink-soft);
+  background: var(--bg-deep);
+}
+
+.week-section {
+  margin-bottom: 2.2rem;
+  padding-bottom: 1.4rem;
+  border-bottom: 1px dashed var(--border);
+}
+
+.week-section:last-child {
+  border-bottom: none;
+}
+
+.week-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.week-header h3 {
+  font-size: 1.3rem;
+  font-style: italic;
+}
+
+button.shuffle-button {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.8rem;
+}
+
 .recipe-name-link {
   display: block;
   background: none;

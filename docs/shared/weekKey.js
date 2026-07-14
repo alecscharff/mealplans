@@ -15,6 +15,12 @@ export function formatDate(d) {
   return `${y}-${m}-${day}`;
 }
 
+// Returns the weekKey `n` weeks after (or before, if negative) the given one.
+export function addWeeks(weekKeyStr, n) {
+  const [y, m, d] = weekKeyStr.split("-").map(Number);
+  return formatDate(new Date(y, m - 1, d + 7 * n));
+}
+
 // Monday=0 ... Sunday=6, matching the spec's weekday convention (settings.deadlineDay etc.)
 export function weekday(date = new Date()) {
   const jsDay = date.getDay(); // Sunday=0 ... Saturday=6

@@ -11,6 +11,18 @@ test("computeRollover ignores the current week", () => {
   assert.deepEqual(result.archivedWeekKeys, []);
 });
 
+test("computeRollover ignores future weeks (planned ahead via the 4-week menu view)", () => {
+  const result = computeRollover(
+    [
+      { weekKey: "2026-07-20", picks: ["r1", "r2"], archived: false },
+      { weekKey: "2026-07-27", picks: [], archived: false },
+    ],
+    "2026-07-13"
+  );
+  assert.deepEqual(result.historyAppends, []);
+  assert.deepEqual(result.archivedWeekKeys, []);
+});
+
 test("computeRollover ignores already-archived weeks", () => {
   const result = computeRollover(
     [{ weekKey: "2026-07-06", picks: ["r1", "r2"], archived: true }],
