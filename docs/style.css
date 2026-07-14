@@ -227,6 +227,30 @@ button.pick-button:disabled {
   cursor: not-allowed;
 }
 
+button.pick-button.danger {
+  border-color: var(--ink-faint);
+  color: var(--accent-dark);
+}
+
+button.pick-button.danger:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--paper);
+}
+
+.detail-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.note-inline {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  font-style: italic;
+  margin: 0.5rem 0 0;
+}
+
 /* --- Recipe photos + placeholders --- */
 
 .recipe-thumb,
@@ -299,8 +323,25 @@ button.pick-button:disabled {
   background: var(--paper);
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 0.3rem 0.9rem 0.3rem 0.3rem;
+  padding: 0.3rem 0.6rem 0.3rem 0.3rem;
   box-shadow: var(--shadow-sm);
+}
+
+.chip-delete {
+  border: none;
+  background: none;
+  color: var(--ink-faint);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: 999px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.chip-delete:hover {
+  color: var(--paper);
+  background: var(--accent-dark);
 }
 
 .grocery-category {
@@ -319,9 +360,32 @@ button.pick-button:disabled {
 
 .grocery-item {
   display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.4rem 0.1rem;
+}
+
+.grocery-item-main {
+  display: flex;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.4rem 0.1rem;
+}
+
+.spice-blend-note {
+  margin-left: 1.8rem;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.spice-blend-note summary {
+  cursor: pointer;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.spice-blend-note ul {
+  margin: 0.4rem 0 0.2rem;
+  padding-left: 1.2rem;
 }
 
 .grocery-item input[type="checkbox"] {
@@ -389,7 +453,8 @@ form.settings-form label {
 }
 
 form.settings-form input,
-form.settings-form select {
+form.settings-form select,
+form.settings-form textarea {
   padding: 0.55rem 0.7rem;
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
@@ -399,8 +464,14 @@ form.settings-form select {
   color: var(--ink);
 }
 
+form.settings-form textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
 form.settings-form input:focus,
-form.settings-form select:focus {
+form.settings-form select:focus,
+form.settings-form textarea:focus {
   outline: none;
   border-color: var(--accent);
 }

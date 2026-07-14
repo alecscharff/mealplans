@@ -17,6 +17,7 @@ import { renderGrocery } from "./views/grocery.js";
 import { renderSettings } from "./views/settings.js";
 import { renderAddRecipe } from "./views/addRecipe.js";
 import { renderRecipeDetail } from "./views/recipeDetail.js";
+import { renderEditRecipe } from "./views/editRecipe.js";
 
 const appEl = document.getElementById("app");
 const statusEl = document.getElementById("status");
@@ -27,6 +28,7 @@ const views = {
   settings: renderSettings,
   addRecipe: renderAddRecipe,
   detail: renderRecipeDetail,
+  editRecipe: renderEditRecipe,
 };
 let currentTab = "menu";
 let navParams = {};
@@ -61,9 +63,13 @@ async function loadState(db) {
     const candidates = generateCandidates(recipeCache.recipes, currentWeekKey, settings.shuffleSeed || "sunday-menu");
     weekState = { candidates, picks: [], autoPickedIds: [], groceryChecks: {}, stepChecks: {}, archived: false };
     await saveWeekState(db, currentWeekKey, weekState);
-  } else if (weekState.candidates.length === 0 && recipeCache.recipes.length > 0) {
-    // Bootstrap case: this week's state was created before any recipes had been
-    // added yet (e.g. a brand-new install). Regenerate now that some exist.
+  } else if (
+    weekState.picks.length < 2 &&
+    weekState.candidates.length < Math.min(recipeCache.recipes.length, 5)
+  ) {
+    // Recipes were added after this week's candidates were first generated (e.g.
+    // still bootstrapping the recipe library). Regenerate to include them, as long as
+    // picks aren't finalized yet — once you've picked, the pool stops shifting under you.
     const candidates = generateCandidates(recipeCache.recipes, currentWeekKey, settings.shuffleSeed || "sunday-menu");
     weekState = { ...weekState, candidates };
     await saveWeekState(db, currentWeekKey, weekState);

@@ -1,5 +1,6 @@
 import { saveWeekState } from "../firestore.js";
 import { createRecipeThumb } from "./recipeImage.js";
+import { createSpiceBlendNote } from "./spiceBlendNote.js";
 
 function formatScaledQuantity(item, scale) {
   if (item.quantity == null) return item.raw;
@@ -19,12 +20,24 @@ export function renderRecipeDetail(container, ctx, refresh) {
     return;
   }
 
+  const toolbar = document.createElement("div");
+  toolbar.className = "detail-toolbar";
+
   const backButton = document.createElement("button");
   backButton.className = "pick-button";
-  backButton.style.marginBottom = "0.9rem";
   backButton.textContent = "← Back";
   backButton.addEventListener("click", () => navigate(params.from || "menu"));
-  container.appendChild(backButton);
+  toolbar.appendChild(backButton);
+
+  const editButton = document.createElement("button");
+  editButton.className = "pick-button";
+  editButton.textContent = "Edit";
+  editButton.addEventListener("click", () =>
+    navigate("editRecipe", { uid: recipe.uid, from: "detail", detailFrom: params.from })
+  );
+  toolbar.appendChild(editButton);
+
+  container.appendChild(toolbar);
 
   container.appendChild(createRecipeThumb(recipe, "recipe-thumb-hero"));
 
@@ -66,6 +79,8 @@ export function renderRecipeDetail(container, ctx, refresh) {
     for (const item of recipe.ingredientsParsed) {
       const li = document.createElement("li");
       li.textContent = formatScaledQuantity(item, scale);
+      const blendNote = createSpiceBlendNote(item.name);
+      if (blendNote) li.appendChild(blendNote);
       ingredientsList.appendChild(li);
     }
   }

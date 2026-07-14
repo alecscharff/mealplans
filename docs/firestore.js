@@ -51,6 +51,19 @@ export async function addRecipe(db, recipe) {
   await setDoc(doc(db, "recipeCache", "main"), { recipes: [...cache.recipes, recipe] }, { merge: true });
 }
 
+// Replaces one recipe's fields in place, keeping its uid/lastCooked/addedAt.
+export async function updateRecipe(db, uid, updates) {
+  const cache = await getRecipeCache(db);
+  const recipes = cache.recipes.map((r) => (r.uid === uid ? { ...r, ...updates } : r));
+  await setDoc(doc(db, "recipeCache", "main"), { recipes }, { merge: true });
+}
+
+export async function deleteRecipe(db, uid) {
+  const cache = await getRecipeCache(db);
+  const recipes = cache.recipes.filter((r) => r.uid !== uid);
+  await setDoc(doc(db, "recipeCache", "main"), { recipes }, { merge: true });
+}
+
 // Applies { [uid]: weekKey } lastCooked updates to the cached recipes array.
 export async function updateRecipeLastCooked(db, lastCookedUpdates) {
   if (Object.keys(lastCookedUpdates).length === 0) return;

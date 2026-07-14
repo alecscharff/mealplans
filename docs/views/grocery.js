@@ -1,6 +1,7 @@
 import { buildGroceryList } from "../shared/grocery.js";
 import { saveWeekState } from "../firestore.js";
 import { createRecipeThumb } from "./recipeImage.js";
+import { createSpiceBlendNote } from "./spiceBlendNote.js";
 
 function itemKey(category, item) {
   return `${category}::${item.name}::${item.unit || ""}`;
@@ -62,6 +63,9 @@ export function renderGrocery(container, ctx, refresh) {
       const row = document.createElement("div");
       row.className = "grocery-item" + (checks[key] ? " checked" : "");
 
+      const main = document.createElement("div");
+      main.className = "grocery-item-main";
+
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.id = key;
@@ -79,8 +83,13 @@ export function renderGrocery(container, ctx, refresh) {
         await saveWeekState(db, currentWeekKey, { groceryChecks: checks });
       });
 
-      row.appendChild(checkbox);
-      row.appendChild(label);
+      main.appendChild(checkbox);
+      main.appendChild(label);
+      row.appendChild(main);
+
+      const blendNote = createSpiceBlendNote(item.name);
+      if (blendNote) row.appendChild(blendNote);
+
       section.appendChild(row);
     }
 

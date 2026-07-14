@@ -1,9 +1,9 @@
 import { scrapeRecipeUrl } from "../functionsClient.js";
-import { addRecipe } from "../firestore.js";
+import { addRecipe, updateRecipe, deleteRecipe } from "../firestore.js";
 import { createRecipeThumb } from "./recipeImage.js";
 
 export function renderAddRecipe(container, ctx, refresh) {
-  const { db, recipeCache } = ctx;
+  const { db, recipeCache, navigate } = ctx;
   let scraped = null;
 
   const form = document.createElement("form");
@@ -75,14 +75,15 @@ export function renderAddRecipe(container, ctx, refresh) {
     }
     card.appendChild(stepsList);
 
+    const existing = recipeCache.recipes.find((r) => r.sourceUrl === scraped.sourceUrl);
+
     const saveButton = document.createElement("button");
     saveButton.className = "pick-button";
-    saveButton.textContent = "Add to menu rotation";
+    saveButton.textContent = existing ? "Update existing recipe" : "Add to menu rotation";
     saveButton.addEventListener("click", async () => {
       saveButton.disabled = true;
       saveButton.textContent = "Saving…";
-      const recipe = {
-        uid: crypto.randomUUID(),
+      const fields = {
         name: scraped.name,
         sourceUrl: scraped.sourceUrl,
         servings: scraped.servings,
@@ -90,15 +91,24 @@ export function renderAddRecipe(container, ctx, refresh) {
         ingredientsRaw: scraped.ingredientsRaw,
         ingredientsParsed: scraped.ingredientsParsed,
         directions: scraped.directions,
-        lastCooked: null,
-        addedAt: new Date().toISOString(),
       };
-      await addRecipe(db, recipe);
+      if (existing) {
+        await updateRecipe(db, existing.uid, fields);
+      } else {
+        await addRecipe(db, { uid: crypto.randomUUID(), ...fields, lastCooked: null, addedAt: new Date().toISOString() });
+      }
       urlInput.value = "";
       scraped = null;
       await refresh();
     });
     card.appendChild(saveButton);
+
+    if (existing) {
+      const note = document.createElement("p");
+      note.className = "note-inline";
+      note.textContent = "This URL is already in your rotation — saving will update that recipe instead of adding a duplicate.";
+      card.appendChild(note);
+    }
 
     preview.appendChild(card);
   }
@@ -142,13 +152,24 @@ export function renderAddRecipe(container, ctx, refresh) {
       chip.className = "recipe-chip";
       chip.appendChild(createRecipeThumb(recipe, "recipe-thumb-sm"));
 
-      const link = document.createElement("a");
-      link.href = recipe.sourceUrl;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
+      const link = document.createElement("button");
+      link.type = "button";
       link.className = "recipe-name-link";
       link.textContent = recipe.name;
+      link.addEventListener("click", () => navigate("editRecipe", { uid: recipe.uid, from: "addRecipe" }));
       chip.appendChild(link);
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "chip-delete";
+      deleteButton.textContent = "×";
+      deleteButton.setAttribute("aria-label", `Remove ${recipe.name}`);
+      deleteButton.addEventListener("click", async () => {
+        if (!confirm(`Remove "${recipe.name}" from the rotation?`)) return;
+        await deleteRecipe(db, recipe.uid);
+        await refresh();
+      });
+      chip.appendChild(deleteButton);
 
       list.appendChild(chip);
     }
