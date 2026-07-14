@@ -1,5 +1,6 @@
 import { scrapeRecipeUrl } from "../functionsClient.js";
 import { addRecipe } from "../firestore.js";
+import { createRecipeThumb } from "./recipeImage.js";
 
 export function renderAddRecipe(container, ctx, refresh) {
   const { db, recipeCache } = ctx;
@@ -11,9 +12,12 @@ export function renderAddRecipe(container, ctx, refresh) {
   const urlLabel = document.createElement("label");
   urlLabel.textContent = "Recipe URL";
   const urlInput = document.createElement("input");
-  urlInput.type = "url";
+  // type="text" (not "url") — a native url input rejects anything without a scheme,
+  // so pasting a bare "www.example.com/..." (no "https://") would silently block
+  // submission. We normalize the scheme ourselves below instead.
+  urlInput.type = "text";
   urlInput.required = true;
-  urlInput.placeholder = "https://example.com/some-recipe";
+  urlInput.placeholder = "www.example.com/some-recipe";
   urlLabel.appendChild(urlInput);
   form.appendChild(urlLabel);
 
@@ -36,8 +40,8 @@ export function renderAddRecipe(container, ctx, refresh) {
 
     const card = document.createElement("div");
     card.className = "recipe-card recipe-preview";
-    card.style.flexDirection = "column";
-    card.style.alignItems = "stretch";
+
+    card.appendChild(createRecipeThumb(scraped, "recipe-thumb-hero"));
 
     const name = document.createElement("h3");
     name.textContent = scraped.name;
@@ -82,6 +86,7 @@ export function renderAddRecipe(container, ctx, refresh) {
         name: scraped.name,
         sourceUrl: scraped.sourceUrl,
         servings: scraped.servings,
+        image: scraped.image,
         ingredientsRaw: scraped.ingredientsRaw,
         ingredientsParsed: scraped.ingredientsParsed,
         directions: scraped.directions,
@@ -98,6 +103,11 @@ export function renderAddRecipe(container, ctx, refresh) {
     preview.appendChild(card);
   }
 
+  function normalizeUrl(value) {
+    const trimmed = value.trim();
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     scraped = null;
@@ -105,7 +115,7 @@ export function renderAddRecipe(container, ctx, refresh) {
     fetchButton.disabled = true;
     statusEl.textContent = "Fetching…";
     try {
-      scraped = await scrapeRecipeUrl(urlInput.value.trim());
+      scraped = await scrapeRecipeUrl(normalizeUrl(urlInput.value));
       statusEl.textContent = "";
       renderPreview();
     } catch (err) {
@@ -125,16 +135,22 @@ export function renderAddRecipe(container, ctx, refresh) {
     notice.textContent = "No recipes yet — paste a URL above to add your first one. New recipes join the pool starting next week's menu.";
     container.appendChild(notice);
   } else {
-    const list = document.createElement("ul");
+    const list = document.createElement("div");
+    list.className = "recipe-chip-row";
     for (const recipe of recipeCache.recipes) {
-      const li = document.createElement("li");
+      const chip = document.createElement("div");
+      chip.className = "recipe-chip";
+      chip.appendChild(createRecipeThumb(recipe, "recipe-thumb-sm"));
+
       const link = document.createElement("a");
       link.href = recipe.sourceUrl;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
+      link.className = "recipe-name-link";
       link.textContent = recipe.name;
-      li.appendChild(link);
-      list.appendChild(li);
+      chip.appendChild(link);
+
+      list.appendChild(chip);
     }
     container.appendChild(list);
   }

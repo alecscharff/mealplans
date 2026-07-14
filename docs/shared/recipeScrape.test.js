@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   extractJsonLd,
   findRecipe,
+  normalizeImage,
   normalizeInstructions,
   normalizeYield,
   scrapeRecipeFromHtml,
@@ -71,6 +72,33 @@ test("normalizeYield returns null when nothing parses", () => {
   assert.equal(normalizeYield("Serves a crowd"), null);
 });
 
+test("normalizeImage handles a plain string URL", () => {
+  assert.equal(normalizeImage("https://example.com/photo.jpg"), "https://example.com/photo.jpg");
+});
+
+test("normalizeImage handles an array of string URLs, taking the first", () => {
+  assert.equal(
+    normalizeImage(["https://example.com/a.jpg", "https://example.com/b.jpg"]),
+    "https://example.com/a.jpg"
+  );
+});
+
+test("normalizeImage handles an ImageObject", () => {
+  assert.equal(normalizeImage({ "@type": "ImageObject", url: "https://example.com/c.jpg" }), "https://example.com/c.jpg");
+});
+
+test("normalizeImage handles an array of ImageObjects", () => {
+  assert.equal(
+    normalizeImage([{ "@type": "ImageObject", url: "https://example.com/d.jpg" }]),
+    "https://example.com/d.jpg"
+  );
+});
+
+test("normalizeImage returns null when nothing usable is present", () => {
+  assert.equal(normalizeImage(null), null);
+  assert.equal(normalizeImage([{ "@type": "ImageObject" }]), null);
+});
+
 test("normalizeInstructions handles an array of plain strings", () => {
   assert.deepEqual(normalizeInstructions(["Preheat oven.", "Bake for 20 minutes."]), [
     "Preheat oven.",
@@ -128,6 +156,7 @@ test("scrapeRecipeFromHtml returns a full structured recipe", () => {
     "@type": "Recipe",
     name: "Weeknight Chili",
     recipeYield: "6 servings",
+    image: [{ "@type": "ImageObject", url: "https://example.com/chili.jpg" }],
     recipeIngredient: ["2 cups flour", "1 lb ground beef", "Salt to taste"],
     recipeInstructions: [
       { "@type": "HowToStep", text: "Brown the beef." },
@@ -139,6 +168,7 @@ test("scrapeRecipeFromHtml returns a full structured recipe", () => {
   assert.equal(recipe.name, "Weeknight Chili");
   assert.equal(recipe.sourceUrl, "https://example.com/chili");
   assert.equal(recipe.servings, 6);
+  assert.equal(recipe.image, "https://example.com/chili.jpg");
   assert.equal(recipe.ingredientsRaw, "2 cups flour\n1 lb ground beef\nSalt to taste");
   assert.equal(recipe.ingredientsParsed.length, 3);
   assert.equal(recipe.ingredientsParsed[0].quantity, 2);

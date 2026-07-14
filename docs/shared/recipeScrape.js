@@ -76,6 +76,18 @@ export function normalizeInstructions(recipeInstructions) {
   return flattenInstructions(recipeInstructions);
 }
 
+// schema.org allows `image` to be a URL string, an array of those, an ImageObject
+// ({ url: "..." }), or an array of ImageObjects — take the first usable URL.
+export function normalizeImage(image) {
+  const candidates = Array.isArray(image) ? image : [image];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (typeof candidate === "string") return candidate;
+    if (typeof candidate === "object" && typeof candidate.url === "string") return candidate.url;
+  }
+  return null;
+}
+
 export function normalizeYield(recipeYield) {
   const candidates = Array.isArray(recipeYield) ? recipeYield : [recipeYield];
   for (const candidate of candidates) {
@@ -104,6 +116,7 @@ export function scrapeRecipeFromHtml(html, sourceUrl) {
     name: recipe.name ? stripHtml(recipe.name) : "Untitled recipe",
     sourceUrl,
     servings: normalizeYield(recipe.recipeYield),
+    image: normalizeImage(recipe.image),
     ingredientsRaw,
     ingredientsParsed: parseIngredientsRaw(ingredientsRaw),
     directions: normalizeInstructions(recipe.recipeInstructions),

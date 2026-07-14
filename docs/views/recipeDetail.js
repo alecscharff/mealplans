@@ -1,4 +1,5 @@
 import { saveWeekState } from "../firestore.js";
+import { createRecipeThumb } from "./recipeImage.js";
 
 function formatScaledQuantity(item, scale) {
   if (item.quantity == null) return item.raw;
@@ -20,9 +21,12 @@ export function renderRecipeDetail(container, ctx, refresh) {
 
   const backButton = document.createElement("button");
   backButton.className = "pick-button";
+  backButton.style.marginBottom = "0.9rem";
   backButton.textContent = "← Back";
   backButton.addEventListener("click", () => navigate(params.from || "menu"));
   container.appendChild(backButton);
+
+  container.appendChild(createRecipeThumb(recipe, "recipe-thumb-hero"));
 
   const name = document.createElement("h2");
   name.textContent = recipe.name;
@@ -30,10 +34,11 @@ export function renderRecipeDetail(container, ctx, refresh) {
 
   if (recipe.sourceUrl) {
     const link = document.createElement("a");
+    link.className = "source-link";
     link.href = recipe.sourceUrl;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    link.textContent = "View original recipe";
+    link.textContent = "View original recipe ↗";
     container.appendChild(link);
   }
 

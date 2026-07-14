@@ -1,4 +1,5 @@
 import { saveWeekState } from "../firestore.js";
+import { createRecipeThumb } from "./recipeImage.js";
 
 export function renderMenu(container, ctx, refresh) {
   const { weekState, recipesByUid, currentWeekKey, db, navigate } = ctx;
@@ -32,8 +33,10 @@ export function renderMenu(container, ctx, refresh) {
 
       const card = document.createElement("div");
       card.className = "recipe-card" + (selected.includes(uid) ? " picked" : "");
+      card.appendChild(createRecipeThumb(recipe));
 
       const info = document.createElement("div");
+      info.className = "recipe-card-info";
       const name = document.createElement("button");
       name.type = "button";
       name.className = "recipe-name-link";

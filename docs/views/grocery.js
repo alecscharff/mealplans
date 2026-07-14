@@ -1,5 +1,6 @@
 import { buildGroceryList } from "../shared/grocery.js";
 import { saveWeekState } from "../firestore.js";
+import { createRecipeThumb } from "./recipeImage.js";
 
 function itemKey(category, item) {
   return `${category}::${item.name}::${item.unit || ""}`;
@@ -28,13 +29,20 @@ export function renderGrocery(container, ctx, refresh) {
   recipesHeading.textContent = "This week's recipes";
   container.appendChild(recipesHeading);
   const recipesList = document.createElement("div");
+  recipesList.className = "recipe-chip-row";
   for (const recipe of pickedRecipes) {
+    const chip = document.createElement("div");
+    chip.className = "recipe-chip";
+    chip.appendChild(createRecipeThumb(recipe, "recipe-thumb-sm"));
+
     const link = document.createElement("button");
     link.type = "button";
     link.className = "recipe-name-link";
     link.textContent = recipe.name;
     link.addEventListener("click", () => navigate("detail", { uid: recipe.uid, from: "grocery" }));
-    recipesList.appendChild(link);
+    chip.appendChild(link);
+
+    recipesList.appendChild(chip);
   }
   container.appendChild(recipesList);
 
