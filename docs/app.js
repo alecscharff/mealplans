@@ -9,8 +9,8 @@ import {
   appendHistory,
   updateRecipeLastCooked,
 } from "./firestore.js";
-import { weekKey as computeWeekKey, weekday, addWeeks } from "./shared/weekKey.js";
-import { generateCandidates, applyDeadlineAutoPick } from "./shared/candidates.js";
+import { weekKey as computeWeekKey, addWeeks } from "./shared/weekKey.js";
+import { generateCandidates } from "./shared/candidates.js";
 import { computeRollover } from "./shared/rollover.js";
 import { renderMenu } from "./views/menu.js";
 import { renderGrocery } from "./views/grocery.js";
@@ -43,20 +43,21 @@ function candidateSeed(settings, weekState) {
   return `${settings.shuffleSeed || "sunday-menu"}:${weekState?.shuffleNonce || 0}`;
 }
 
-// Loads (or creates) a single week's state. Regenerates candidates if the recipe pool
-// has grown since they were last picked and this week's picks aren't finalized yet —
-// covers both a brand-new week and one whose pool needs to catch up while bootstrapping
-// the recipe library. Does NOT apply deadline auto-pick; only the current week has one.
-async function ensureWeek(db, weekKey, settings, recipeCache) {
+// Loads (or creates) a single week's state, drawing candidates only from
+// `availableRecipes` — recipes not already showing up in an earlier-processed week
+// of the 4-week view, so the same recipe can't be suggested twice in one pass.
+// Regenerates candidates if the available pool changed size since they were last
+// picked and this week's picks aren't finalized yet. Every week (including the
+// current one) works identically — there's no deadline auto-pick special case.
+async function ensureWeek(db, weekKey, settings, availableRecipes) {
   let weekState = await getWeekState(db, weekKey);
   if (!weekState) {
-    const candidates = generateCandidates(recipeCache.recipes, weekKey, candidateSeed(settings, null), {
+    const candidates = generateCandidates(availableRecipes, weekKey, candidateSeed(settings, null), {
       takeCount: CANDIDATES_PER_WEEK,
     });
     weekState = {
       candidates,
       picks: [],
-      autoPickedIds: [],
       groceryChecks: {},
       stepChecks: {},
       shuffleNonce: 0,
@@ -65,11 +66,11 @@ async function ensureWeek(db, weekKey, settings, recipeCache) {
     await saveWeekState(db, weekKey, weekState);
   } else if (
     weekState.picks.length < 2 &&
-    weekState.candidates.length !== Math.min(recipeCache.recipes.length, CANDIDATES_PER_WEEK)
+    weekState.candidates.length !== Math.min(availableRecipes.length, CANDIDATES_PER_WEEK)
   ) {
-    // Covers the pool growing (too few candidates) and also a shrunk target take-count
-    // (too many candidates left over from before CANDIDATES_PER_WEEK changed).
-    const candidates = generateCandidates(recipeCache.recipes, weekKey, candidateSeed(settings, weekState), {
+    // Covers the available pool growing or shrinking (including a shrunk target
+    // take-count left over from before CANDIDATES_PER_WEEK changed).
+    const candidates = generateCandidates(availableRecipes, weekKey, candidateSeed(settings, weekState), {
       takeCount: CANDIDATES_PER_WEEK,
     });
     weekState = { ...weekState, candidates };
@@ -108,26 +109,14 @@ async function loadState(db) {
   const weekKeys = Array.from({ length: UPCOMING_WEEKS_COUNT }, (_, i) => addWeeks(currentWeekKey, i));
   let weekState = null;
   const upcomingWeeks = [];
+  const usedUids = new Set();
   for (const weekKey of weekKeys) {
-    let ws = await ensureWeek(db, weekKey, settings, recipeCache);
+    const availableRecipes = recipeCache.recipes.filter((r) => !usedUids.has(r.uid));
+    const ws = await ensureWeek(db, weekKey, settings, availableRecipes);
 
-    if (weekKey === currentWeekKey) {
-      // Deadline auto-pick only applies to the week actually in progress.
-      const autoPick = applyDeadlineAutoPick({
-        todayWeekday: weekday(new Date()),
-        deadlineDay: settings.deadlineDay,
-        candidates: ws.candidates,
-        recipesByUid,
-        picks: ws.picks,
-        autoPickedIds: ws.autoPickedIds,
-      });
-      if (autoPick.picks.length !== ws.picks.length) {
-        ws = { ...ws, picks: autoPick.picks, autoPickedIds: autoPick.autoPickedIds };
-        await saveWeekState(db, weekKey, ws);
-      }
-      weekState = ws;
-    }
+    if (weekKey === currentWeekKey) weekState = ws;
 
+    for (const uid of ws.candidates) usedUids.add(uid);
     upcomingWeeks.push({ weekKey, weekState: ws });
   }
 

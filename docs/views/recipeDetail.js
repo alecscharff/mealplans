@@ -51,7 +51,13 @@ export function renderRecipeDetail(container, ctx, refresh) {
     link.href = recipe.sourceUrl;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    link.textContent = "View original recipe ↗";
+    let hostname = recipe.sourceUrl;
+    try {
+      hostname = new URL(recipe.sourceUrl).hostname.replace(/^www\./, "");
+    } catch {
+      // Keep the raw URL as a fallback if it's somehow not a valid URL.
+    }
+    link.textContent = `Source: ${hostname} ↗`;
     container.appendChild(link);
   }
 

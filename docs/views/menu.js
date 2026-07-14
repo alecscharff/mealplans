@@ -1,6 +1,7 @@
 import { saveWeekState } from "../firestore.js";
 import { generateCandidates } from "../shared/candidates.js";
 import { createRecipeThumb } from "./recipeImage.js";
+import { formatWeekLabel } from "./weekLabel.js";
 
 const CANDIDATES_PER_WEEK = 4;
 
@@ -8,31 +9,24 @@ function candidateSeed(settings, shuffleNonce) {
   return `${settings.shuffleSeed || "sunday-menu"}:${shuffleNonce || 0}`;
 }
 
-function formatWeekLabel(weekKey, currentWeekKey) {
-  if (weekKey === currentWeekKey) return "This Week";
-  const [y, m, d] = weekKey.split("-").map(Number);
-  const label = new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  return `Week of ${label}`;
-}
-
 export function renderMenu(container, ctx, refresh) {
-  const { upcomingWeeks, currentWeekKey, recipesByUid, recipeCache, settings, db, navigate } = ctx;
+  const { upcomingWeeks, recipesByUid, recipeCache, settings, db, navigate } = ctx;
 
   for (const { weekKey, weekState } of upcomingWeeks) {
     container.appendChild(
-      renderWeekSection({ weekKey, weekState, currentWeekKey, recipesByUid, recipeCache, settings, db, navigate, refresh })
+      renderWeekSection({ weekKey, weekState, upcomingWeeks, recipesByUid, recipeCache, settings, db, navigate, refresh })
     );
   }
 }
 
-function renderWeekSection({ weekKey, weekState, currentWeekKey, recipesByUid, recipeCache, settings, db, navigate, refresh }) {
+function renderWeekSection({ weekKey, weekState, upcomingWeeks, recipesByUid, recipeCache, settings, db, navigate, refresh }) {
   const section = document.createElement("section");
   section.className = "week-section";
 
   const headerRow = document.createElement("div");
   headerRow.className = "week-header";
   const heading = document.createElement("h3");
-  heading.textContent = formatWeekLabel(weekKey, currentWeekKey);
+  heading.textContent = formatWeekLabel(weekKey);
   headerRow.appendChild(heading);
 
   const shuffleButton = document.createElement("button");
@@ -41,13 +35,6 @@ function renderWeekSection({ weekKey, weekState, currentWeekKey, recipesByUid, r
   shuffleButton.textContent = "Shuffle";
   headerRow.appendChild(shuffleButton);
   section.appendChild(headerRow);
-
-  if (weekKey === currentWeekKey && weekState.autoPickedIds.length > 0) {
-    const notice = document.createElement("div");
-    notice.className = "notice";
-    notice.textContent = "The deadline passed, so some picks were made automatically. You can still change them below.";
-    section.appendChild(notice);
-  }
 
   const list = document.createElement("div");
   section.appendChild(list);
@@ -81,12 +68,7 @@ function renderWeekSection({ weekKey, weekState, currentWeekKey, recipesByUid, r
       name.addEventListener("click", () => navigate("detail", { uid, from: "menu" }));
       info.appendChild(name);
 
-      if (weekState.autoPickedIds.includes(uid) && weekState.picks.includes(uid)) {
-        const badge = document.createElement("div");
-        badge.className = "badge";
-        badge.textContent = "auto-picked";
-        info.appendChild(badge);
-      } else if (!selected.includes(uid)) {
+      if (!selected.includes(uid)) {
         const badge = document.createElement("div");
         badge.className = "badge badge-alt";
         badge.textContent = "alternative";
@@ -116,18 +98,24 @@ function renderWeekSection({ weekKey, weekState, currentWeekKey, recipesByUid, r
   saveButton.addEventListener("click", async () => {
     saveButton.disabled = true;
     saveButton.textContent = "Saving…";
-    await saveWeekState(db, weekKey, { picks: selected, autoPickedIds: [] });
+    await saveWeekState(db, weekKey, { picks: selected });
     await refresh();
   });
 
   shuffleButton.addEventListener("click", async () => {
     shuffleButton.disabled = true;
     shuffleButton.textContent = "Shuffling…";
+    // Exclude recipes already showing up in any other displayed week, so a shuffle
+    // can't create a duplicate elsewhere in the 4-week view.
+    const usedByOtherWeeks = new Set(
+      upcomingWeeks.filter((w) => w.weekKey !== weekKey).flatMap((w) => w.weekState.candidates)
+    );
+    const availableRecipes = recipeCache.recipes.filter((r) => !usedByOtherWeeks.has(r.uid));
     const nextNonce = (weekState.shuffleNonce || 0) + 1;
-    const candidates = generateCandidates(recipeCache.recipes, weekKey, candidateSeed(settings, nextNonce), {
+    const candidates = generateCandidates(availableRecipes, weekKey, candidateSeed(settings, nextNonce), {
       takeCount: CANDIDATES_PER_WEEK,
     });
-    await saveWeekState(db, weekKey, { candidates, shuffleNonce: nextNonce, picks: [], autoPickedIds: [] });
+    await saveWeekState(db, weekKey, { candidates, shuffleNonce: nextNonce, picks: [] });
     await refresh();
   });
 

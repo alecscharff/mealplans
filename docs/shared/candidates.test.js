@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateCandidates, applyDeadlineAutoPick } from "./candidates.js";
+import { generateCandidates } from "./candidates.js";
 
 function recipe(uid, lastCooked) {
   return { uid, name: uid, lastCooked };
@@ -29,47 +29,4 @@ test("generateCandidates is deterministic for a given weekKey + seed", () => {
   const a = generateCandidates(recipes, "2026-07-13", "family-seed");
   const b = generateCandidates(recipes, "2026-07-13", "family-seed");
   assert.deepEqual(a, b);
-});
-
-test("applyDeadlineAutoPick does nothing before the deadline", () => {
-  const result = applyDeadlineAutoPick({
-    todayWeekday: 1,
-    deadlineDay: 3,
-    candidates: ["r1", "r2", "r3"],
-    recipesByUid: { r1: recipe("r1", "2026-01-01"), r2: recipe("r2", "2026-01-02"), r3: recipe("r3", "2026-01-03") },
-    picks: [],
-    autoPickedIds: [],
-  });
-  assert.deepEqual(result.picks, []);
-  assert.deepEqual(result.autoPickedIds, []);
-});
-
-test("applyDeadlineAutoPick does nothing once 2 picks already exist", () => {
-  const result = applyDeadlineAutoPick({
-    todayWeekday: 5,
-    deadlineDay: 3,
-    candidates: ["r1", "r2", "r3"],
-    recipesByUid: { r1: recipe("r1", "2026-01-01"), r2: recipe("r2", "2026-01-02"), r3: recipe("r3", "2026-01-03") },
-    picks: ["r1", "r2"],
-    autoPickedIds: [],
-  });
-  assert.deepEqual(result.picks, ["r1", "r2"]);
-  assert.deepEqual(result.autoPickedIds, []);
-});
-
-test("applyDeadlineAutoPick fills remaining slots by least-recently-cooked at/after the deadline", () => {
-  const result = applyDeadlineAutoPick({
-    todayWeekday: 3,
-    deadlineDay: 3,
-    candidates: ["r1", "r2", "r3"],
-    recipesByUid: {
-      r1: recipe("r1", "2026-03-01"),
-      r2: recipe("r2", "2026-01-01"), // least recently cooked
-      r3: recipe("r3", "2026-02-01"),
-    },
-    picks: ["r1"],
-    autoPickedIds: [],
-  });
-  assert.deepEqual(result.picks, ["r1", "r2"]);
-  assert.deepEqual(result.autoPickedIds, ["r2"]);
 });

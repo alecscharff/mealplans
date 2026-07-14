@@ -42,12 +42,6 @@ export function renderSettings(container, ctx, refresh) {
   cookDay2Label.appendChild(cookDay2Select);
   form.appendChild(cookDay2Label);
 
-  const deadlineLabel = document.createElement("label");
-  deadlineLabel.textContent = "Auto-pick deadline day";
-  const deadlineSelect = daySelect("deadlineDay", settings.deadlineDay);
-  deadlineLabel.appendChild(deadlineSelect);
-  form.appendChild(deadlineLabel);
-
   const saveButton = document.createElement("button");
   saveButton.type = "submit";
   saveButton.className = "pick-button";
@@ -62,7 +56,6 @@ export function renderSettings(container, ctx, refresh) {
       familySize: Number(familySizeInput.value),
       cookDay1: Number(cookDay1Select.value),
       cookDay2: Number(cookDay2Select.value),
-      deadlineDay: Number(deadlineSelect.value),
     });
     await refresh();
   });
