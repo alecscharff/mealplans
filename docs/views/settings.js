@@ -1,20 +1,5 @@
 import { saveSettings } from "../firestore.js";
 
-const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-
-function daySelect(id, value) {
-  const select = document.createElement("select");
-  select.id = id;
-  WEEKDAYS.forEach((label, i) => {
-    const option = document.createElement("option");
-    option.value = i;
-    option.textContent = label;
-    option.selected = i === value;
-    select.appendChild(option);
-  });
-  return select;
-}
-
 export function renderSettings(container, ctx, refresh) {
   const { settings, db } = ctx;
 
@@ -30,18 +15,6 @@ export function renderSettings(container, ctx, refresh) {
   familySizeLabel.appendChild(familySizeInput);
   form.appendChild(familySizeLabel);
 
-  const cookDay1Label = document.createElement("label");
-  cookDay1Label.textContent = "First cook day";
-  const cookDay1Select = daySelect("cookDay1", settings.cookDay1);
-  cookDay1Label.appendChild(cookDay1Select);
-  form.appendChild(cookDay1Label);
-
-  const cookDay2Label = document.createElement("label");
-  cookDay2Label.textContent = "Second cook day";
-  const cookDay2Select = daySelect("cookDay2", settings.cookDay2);
-  cookDay2Label.appendChild(cookDay2Select);
-  form.appendChild(cookDay2Label);
-
   const saveButton = document.createElement("button");
   saveButton.type = "submit";
   saveButton.className = "pick-button";
@@ -54,8 +27,6 @@ export function renderSettings(container, ctx, refresh) {
     saveButton.textContent = "Saving…";
     await saveSettings(db, {
       familySize: Number(familySizeInput.value),
-      cookDay1: Number(cookDay1Select.value),
-      cookDay2: Number(cookDay2Select.value),
     });
     await refresh();
   });

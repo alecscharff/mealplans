@@ -8,31 +8,36 @@ planner, deadline auto-pick was removed). This README covers current state.
 ## What's built
 
 - `docs/shared/` — framework-free, unit-tested core logic
-  (`node --test docs/shared/*.test.js` — 78 tests): week key math, seeded shuffle,
+  (`node --test docs/shared/*.test.js` — 99 tests): week key math, seeded shuffle,
   candidate generation, week rollover/history, recipe-page JSON-LD scraping, ingredient
-  parsing, grocery merge+scale, HelloFresh proprietary spice-blend lookup, and
-  protein/style tag derivation. Lives under `docs/` (not a top-level `shared/`) so
-  GitHub Pages, which only publishes `docs/`, can serve it to the frontend;
-  `functions/` reaches it via a predeploy-copied `./shared/...` (see below).
+  parsing, grocery merge+scale, HelloFresh proprietary spice-blend lookup, protein/style
+  tag derivation, and recipe search/protein/time filtering. Lives under `docs/` (not a
+  top-level `shared/`) so GitHub Pages, which only publishes `docs/`, can serve it to the
+  frontend; `functions/` reaches it via a predeploy-copied `./shared/...` (see below).
 - `docs/` — the static frontend (vanilla JS ES modules, Firebase JS SDK via CDN, zero
   build step). Four tabs:
   - **Menu** — the current week plus 3 weeks ahead, each showing 2 picked recipes + 2
-    alternatives (click any card to swap it in/out of the picks) and a Shuffle button
-    per week. The same recipe can't be suggested twice across the 4 weeks. Every week
-    behaves identically — there's no special-cased "current week" or deadline logic.
+    alternatives (click any card to swap it in/out of the picks, or Shuffle to reroll
+    the alternatives only — current picks stay put) plus a "Pick from all recipes"
+    search/filter panel for picking outside the 4 suggested candidates. Each card shows
+    when it was last cooked. The same recipe can't be suggested twice across the 4
+    weeks. Every week behaves identically — there's no special-cased "current week" or
+    deadline logic.
   - **Grocery List** — merged/scaled shopping list for the currently-viewed week, with
-    Previous/Next buttons to browse across the same 4 planned weeks. Ingredients
+    Previous/Next buttons to browse across the same 4 planned weeks, and a Both /
+    Recipe A / Recipe B toggle to see just one recipe's ingredients. Ingredients
     matching a known HelloFresh proprietary spice blend (e.g. "Shawarma Spice Blend")
     get an expandable "mix your own" note with the actual ratios.
   - **Add Recipe** — paste a URL, preview the scraped result, save it. Re-submitting a
     URL already in the rotation updates that recipe instead of duplicating it. Below
-    the form, the full recipe list with inline delete.
-  - **Settings** — family size, first/second cook day (display-only; nothing reads
-    them yet).
+    the form, the full recipe list — searchable/filterable by protein and cook time,
+    with inline delete; skipped recipes (see below) show dimmed.
+  - **Settings** — family size.
   - Plus two views reached by navigation rather than a tab: **recipe detail**
     (hero image, servings-adjustable ingredients, tap-to-cross-out steps with bold
     ingredient mentions, source link) and **edit recipe** (editable name/image/
-    servings/cook time/ingredients/steps, "Refresh from source" to re-scrape, delete).
+    servings/cook time/ingredients/steps, "Refresh from source" to re-scrape, a
+    Skip/Include-in-rotation toggle, delete).
 - `functions/` — one Cloud Function, `scrapeRecipeUrl`, an HTTPS callable that fetches a
   pasted recipe URL server-side (avoids the frontend's CORS restrictions) and extracts
   its schema.org Recipe JSON-LD: name, image, servings, cook time, ingredients, and
@@ -66,9 +71,12 @@ reject the fetch outright; most independent recipe blogs work fine.
 - Firestore database (`nam5`), security rules deployed, Anonymous Auth enabled.
 - Web app registered; config in `docs/firebase-config.js` / `.firebaserc` (not secret —
   safe to be public in the static bundle).
-- `settings/main`: `familySize`, `cookDay1`, `cookDay2`, `shuffleSeed`.
-- `recipeCache/main`: `{ recipes: [...] }`, currently ~30 recipes (vegetarian, chicken,
-  turkey — screened for anything deep-fried per household preference).
+- `settings/main`: `familySize`, `shuffleSeed`.
+- `recipeCache/main`: `{ recipes: [...] }`, currently ~49 recipes (vegetarian, chicken,
+  turkey, beef, pork, seafood — screened for anything deep-fried per household
+  preference). A recipe can carry `skipped: true` to exclude it from Shuffle and
+  weekly suggestions without deleting it (toggle from the edit-recipe view) — it stays
+  fully visible and pickable via Add Recipe and "Pick from all recipes."
 
 Console: https://console.firebase.google.com/project/mealplan-a82b0/overview
 Live site: https://alotta.fun/mealplans/ (GitHub Pages, custom domain inherited from
@@ -124,6 +132,18 @@ deployed container otherwise. `functions/shared/` is generated, gitignored.
 - **SSRF guard**: `scrapeRecipeUrl` blocks fetches to loopback/private/link-local
   addresses and the cloud metadata hostname, since it's a server-side fetch of a
   client-supplied URL.
+- **Shuffle and manual picks keep the array size stable**: both Shuffle and "Pick from
+  all recipes" (`docs/views/menu.js`) always keep a week's `candidates` array at exactly
+  4 entries — Shuffle keeps the picked uids and only rerolls the rest; a manual pick of
+  a recipe outside the current 4 swaps it into an unpicked alternative's slot rather than
+  appending. This matters because `app.js`'s `ensureWeek` regenerates `candidates` from
+  scratch whenever its length doesn't match the target count and picks aren't finalized
+  yet (to absorb the recipe pool growing/shrinking) — an array that grew or shrank from a
+  manual pick would get silently clobbered by that guard on the next load.
+- **Skipped recipes**: `recipe.skipped` excludes a recipe from Shuffle/weekly candidate
+  generation (`shared/recipeFilter.js#isActiveForSuggestions`, applied in `app.js` and
+  the Shuffle handler) without hiding it anywhere else — `recipesByUid` and the Add
+  Recipe/picker lists always include it.
 
 ## Running the tests
 

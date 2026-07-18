@@ -40,6 +40,10 @@ export function renderGrocery(container, ctx, refresh) {
   const body = document.createElement("div");
   container.appendChild(body);
 
+  // Which of this week's 2 picks currently feed the merged list below — "both" by
+  // default. Local UI state only (not persisted), reset whenever the week changes.
+  let recipeFilter = "both";
+
   function renderBody() {
     body.innerHTML = "";
     prevButton.disabled = weekIndex <= 0;
@@ -76,7 +80,38 @@ export function renderGrocery(container, ctx, refresh) {
     }
     body.appendChild(recipesList);
 
-    const grouped = buildGroceryList(pickedRecipes, settings.familySize);
+    // weekState.picks.length >= 2 doesn't guarantee pickedRecipes does too — a picked
+    // recipe could have been deleted since. Only offer the toggle when there are
+    // actually 2+ resolved recipes to split between; build options from whatever's
+    // really there instead of assuming exactly 2.
+    let activeRecipes = pickedRecipes;
+    if (pickedRecipes.length >= 2) {
+      const toggleRow = document.createElement("div");
+      toggleRow.className = "recipe-filter-toggle";
+      const toggleOptions = [
+        { value: "both", label: "Both" },
+        ...pickedRecipes.map((r) => ({ value: r.uid, label: r.name })),
+      ];
+      // A recipe could get deleted out from under a saved pick; fall back to "both"
+      // rather than pointing the toggle at a recipe that's no longer selectable.
+      if (!toggleOptions.some((o) => o.value === recipeFilter)) recipeFilter = "both";
+      for (const { value, label } of toggleOptions) {
+        const optionButton = document.createElement("button");
+        optionButton.type = "button";
+        optionButton.className = "pick-button" + (recipeFilter === value ? " selected" : "");
+        optionButton.textContent = label;
+        optionButton.addEventListener("click", () => {
+          recipeFilter = value;
+          renderBody();
+        });
+        toggleRow.appendChild(optionButton);
+      }
+      body.appendChild(toggleRow);
+
+      activeRecipes = recipeFilter === "both" ? pickedRecipes : pickedRecipes.filter((r) => r.uid === recipeFilter);
+    }
+
+    const grouped = buildGroceryList(activeRecipes, settings.familySize);
     const checks = { ...weekState.groceryChecks };
 
     for (const [category, items] of Object.entries(grouped)) {

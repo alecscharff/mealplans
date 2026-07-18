@@ -149,6 +149,24 @@ export function renderEditRecipe(container, ctx, refresh) {
 
   container.appendChild(form);
 
+  const skipButton = document.createElement("button");
+  skipButton.type = "button";
+  skipButton.className = "pick-button";
+  skipButton.style.marginTop = "1.2rem";
+  skipButton.textContent = recipe.skipped ? "Include in rotation again" : "Skip for now";
+  const skipNote = document.createElement("p");
+  skipNote.className = "note-inline";
+  skipNote.textContent = recipe.skipped
+    ? "This recipe is currently excluded from Shuffle and weekly suggestions. It's still visible here and pickable via \"Pick from all recipes.\""
+    : "Keeps the recipe in your list, but out of Shuffle and weekly suggestions until you turn this back on.";
+  skipButton.addEventListener("click", async () => {
+    skipButton.disabled = true;
+    await updateRecipe(db, recipe.uid, { skipped: !recipe.skipped });
+    await refresh();
+  });
+  container.appendChild(skipButton);
+  container.appendChild(skipNote);
+
   const deleteButton = document.createElement("button");
   deleteButton.type = "button";
   deleteButton.className = "pick-button danger";

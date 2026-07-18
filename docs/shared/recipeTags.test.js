@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { deriveProteinTag, deriveStyleTags, deriveTags } from "./recipeTags.js";
+import { deriveProteinTag, deriveStyleTags, deriveTags, PROTEIN_TAG_OPTIONS } from "./recipeTags.js";
+
+test("PROTEIN_TAG_OPTIONS covers every deriveProteinTag() outcome", () => {
+  assert.deepEqual(PROTEIN_TAG_OPTIONS, ["Turkey", "Chicken", "Beef", "Pork", "Seafood", "Vegetarian"]);
+});
 
 test("deriveProteinTag detects chicken", () => {
   assert.equal(deriveProteinTag({ name: "Sheet Pan BBQ Chicken", ingredientsRaw: "12 oz Chicken Cutlets" }), "Chicken");

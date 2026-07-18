@@ -220,7 +220,102 @@ a {
   font-style: italic;
 }
 
+.week-header-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
 button.shuffle-button {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.8rem;
+}
+
+/* --- "Pick from all recipes" picker (Menu) + filter bar (Add Recipe) --- */
+
+.picker-filter-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.7rem 0;
+}
+
+.picker-search {
+  flex: 1;
+  min-width: 10rem;
+  padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.picker-filter-row select {
+  padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.picker-search:focus,
+.picker-filter-row select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.all-recipes-picker {
+  background: var(--bg-deep);
+  border-radius: var(--radius-lg);
+  padding: 0.9rem 1rem 0.3rem;
+  margin: 0.7rem 0;
+}
+
+.picker-list {
+  max-height: 22rem;
+  overflow-y: auto;
+  margin-bottom: 0.6rem;
+}
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem 0.2rem;
+  border-bottom: 1px dashed var(--border);
+}
+
+.picker-row:last-child {
+  border-bottom: none;
+}
+
+.picker-row-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.picker-row-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+/* --- Grocery: per-recipe view toggle --- */
+
+.recipe-filter-toggle {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin: 0.2rem 0 1rem;
+}
+
+.recipe-filter-toggle button {
   font-size: 0.8rem;
   padding: 0.35rem 0.8rem;
 }
@@ -394,6 +489,10 @@ button.pick-button.danger:hover {
   border-radius: 999px;
   padding: 0.3rem 0.6rem 0.3rem 0.3rem;
   box-shadow: var(--shadow-sm);
+}
+
+.recipe-chip-skipped {
+  opacity: 0.55;
 }
 
 .chip-delete {

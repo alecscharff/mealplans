@@ -1,5 +1,7 @@
 import { scrapeRecipeUrl } from "../functionsClient.js";
 import { addRecipe, updateRecipe, deleteRecipe } from "../firestore.js";
+import { filterRecipes, isActiveForSuggestions, TIME_FILTER_OPTIONS } from "../shared/recipeFilter.js";
+import { PROTEIN_TAG_OPTIONS } from "../shared/recipeTags.js";
 import { createRecipeThumb } from "./recipeImage.js";
 import { appendBoldMarkedText } from "./boldText.js";
 
@@ -151,18 +153,75 @@ export function renderAddRecipe(container, ctx, refresh) {
     notice.className = "notice";
     notice.textContent = "No recipes yet — paste a URL above to add your first one. New recipes join the pool starting next week's menu.";
     container.appendChild(notice);
-  } else {
-    const list = document.createElement("div");
-    list.className = "recipe-chip-row";
-    for (const recipe of recipeCache.recipes) {
+    return;
+  }
+
+  const filterRow = document.createElement("div");
+  filterRow.className = "picker-filter-row";
+
+  const searchInput = document.createElement("input");
+  searchInput.type = "text";
+  searchInput.placeholder = "Search recipes…";
+  searchInput.className = "picker-search";
+  filterRow.appendChild(searchInput);
+
+  const proteinSelect = document.createElement("select");
+  const allOption = document.createElement("option");
+  allOption.value = "";
+  allOption.textContent = "Any protein";
+  proteinSelect.appendChild(allOption);
+  for (const tag of PROTEIN_TAG_OPTIONS) {
+    const option = document.createElement("option");
+    option.value = tag;
+    option.textContent = tag;
+    proteinSelect.appendChild(option);
+  }
+  filterRow.appendChild(proteinSelect);
+
+  const timeSelect = document.createElement("select");
+  const anyTimeOption = document.createElement("option");
+  anyTimeOption.value = "";
+  anyTimeOption.textContent = "Any time";
+  timeSelect.appendChild(anyTimeOption);
+  for (const minutes of TIME_FILTER_OPTIONS) {
+    const option = document.createElement("option");
+    option.value = minutes;
+    option.textContent = `${minutes} min or less`;
+    timeSelect.appendChild(option);
+  }
+  filterRow.appendChild(timeSelect);
+
+  container.appendChild(filterRow);
+
+  const list = document.createElement("div");
+  list.className = "recipe-chip-row";
+  container.appendChild(list);
+
+  function renderRecipeList() {
+    list.innerHTML = "";
+    const matches = filterRecipes(recipeCache.recipes, {
+      query: searchInput.value,
+      protein: proteinSelect.value,
+      maxMinutes: timeSelect.value ? Number(timeSelect.value) : null,
+    });
+
+    if (matches.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "note-inline";
+      empty.textContent = "No recipes match that search.";
+      list.appendChild(empty);
+      return;
+    }
+
+    for (const recipe of matches) {
       const chip = document.createElement("div");
-      chip.className = "recipe-chip";
+      chip.className = "recipe-chip" + (isActiveForSuggestions(recipe) ? "" : " recipe-chip-skipped");
       chip.appendChild(createRecipeThumb(recipe, "recipe-thumb-sm"));
 
       const link = document.createElement("button");
       link.type = "button";
       link.className = "recipe-name-link";
-      link.textContent = recipe.name;
+      link.textContent = isActiveForSuggestions(recipe) ? recipe.name : `${recipe.name} (skipped)`;
       link.addEventListener("click", () => navigate("editRecipe", { uid: recipe.uid, from: "addRecipe" }));
       chip.appendChild(link);
 
@@ -180,6 +239,10 @@ export function renderAddRecipe(container, ctx, refresh) {
 
       list.appendChild(chip);
     }
-    container.appendChild(list);
   }
+
+  searchInput.addEventListener("input", renderRecipeList);
+  proteinSelect.addEventListener("change", renderRecipeList);
+  timeSelect.addEventListener("change", renderRecipeList);
+  renderRecipeList();
 }

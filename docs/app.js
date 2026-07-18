@@ -12,6 +12,7 @@ import {
 import { weekKey as computeWeekKey, addWeeks } from "./shared/weekKey.js";
 import { generateCandidates } from "./shared/candidates.js";
 import { computeRollover } from "./shared/rollover.js";
+import { isActiveForSuggestions } from "./shared/recipeFilter.js";
 import { renderMenu } from "./views/menu.js";
 import { renderGrocery } from "./views/grocery.js";
 import { renderSettings } from "./views/settings.js";
@@ -105,13 +106,16 @@ async function loadState(db) {
   const recipesByUid = Object.fromEntries(recipeCache.recipes.map((r) => [r.uid, r]));
 
   // Load (or create) this week's state, plus the next few weeks ahead for the 4-week
-  // menu view.
+  // menu view. Skipped recipes are excluded from automatic candidate generation (but
+  // stay fully visible/pickable everywhere else via recipesByUid) — see
+  // shared/recipeFilter.js.
   const weekKeys = Array.from({ length: UPCOMING_WEEKS_COUNT }, (_, i) => addWeeks(currentWeekKey, i));
+  const suggestibleRecipes = recipeCache.recipes.filter(isActiveForSuggestions);
   let weekState = null;
   const upcomingWeeks = [];
   const usedUids = new Set();
   for (const weekKey of weekKeys) {
-    const availableRecipes = recipeCache.recipes.filter((r) => !usedUids.has(r.uid));
+    const availableRecipes = suggestibleRecipes.filter((r) => !usedUids.has(r.uid));
     const ws = await ensureWeek(db, weekKey, settings, availableRecipes);
 
     if (weekKey === currentWeekKey) weekState = ws;

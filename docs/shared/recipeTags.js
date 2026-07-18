@@ -11,6 +11,10 @@ const MEAT_TAGS = [
   { tag: "Seafood", keywords: ["shrimp", "salmon", "fish", "tuna", "cod", "scallop"] },
 ];
 
+// Every possible deriveProteinTag() result, for building filter dropdowns — kept in
+// sync with MEAT_TAGS by construction rather than hand-duplicated.
+export const PROTEIN_TAG_OPTIONS = [...MEAT_TAGS.map(({ tag }) => tag), "Vegetarian"];
+
 // No meat keyword anywhere in the name/ingredients is treated as Vegetarian —
 // a reasonable default for a recipe pool that's otherwise chicken/turkey/veg.
 export function deriveProteinTag(recipe) {

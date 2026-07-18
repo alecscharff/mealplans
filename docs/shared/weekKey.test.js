@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { weekKey, addWeeks } from "./weekKey.js";
+import { weekKey, addWeeks, weeksBetween } from "./weekKey.js";
 
 test("weekKey returns the Monday of the week for a mid-week date", () => {
   // Thursday 2026-07-16 -> Monday 2026-07-13
@@ -33,4 +33,20 @@ test("addWeeks handles n=0 and negative n", () => {
 
 test("addWeeks crosses month/year boundaries correctly", () => {
   assert.equal(addWeeks("2026-12-28", 1), "2027-01-04");
+});
+
+test("weeksBetween is 0 for the same week", () => {
+  assert.equal(weeksBetween("2026-07-13", "2026-07-13"), 0);
+});
+
+test("weeksBetween is positive when `to` is later", () => {
+  assert.equal(weeksBetween("2026-07-13", "2026-08-03"), 3);
+});
+
+test("weeksBetween is negative when `to` is earlier", () => {
+  assert.equal(weeksBetween("2026-08-03", "2026-07-13"), -3);
+});
+
+test("weeksBetween crosses month/year boundaries correctly", () => {
+  assert.equal(weeksBetween("2026-12-28", "2027-01-11"), 2);
 });
