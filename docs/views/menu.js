@@ -1,7 +1,12 @@
 import { saveWeekState, getWeekState } from "../firestore.js";
 import { generateCandidates } from "../shared/candidates.js";
 import { deriveTags, PROTEIN_TAG_OPTIONS } from "../shared/recipeTags.js";
-import { isActiveForSuggestions, filterRecipes, TIME_FILTER_OPTIONS } from "../shared/recipeFilter.js";
+import {
+  isActiveForSuggestions,
+  filterRecipes,
+  sortByRecentlyAdded,
+  TIME_FILTER_OPTIONS,
+} from "../shared/recipeFilter.js";
 import { weeksBetween } from "../shared/weekKey.js";
 import { createRecipeThumb } from "./recipeImage.js";
 import { formatWeekLabel } from "./weekLabel.js";
@@ -271,7 +276,7 @@ function renderWeekSection({
       pickerList.innerHTML = "";
       const excluded = usedByOtherWeeks();
       const eligible = recipeCache.recipes.filter((r) => !excluded.has(r.uid));
-      const matches = filterRecipes(eligible, pickerFilters);
+      const matches = sortByRecentlyAdded(filterRecipes(eligible, pickerFilters));
 
       if (matches.length === 0) {
         const empty = document.createElement("p");

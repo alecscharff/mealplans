@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { filterRecipes, isActiveForSuggestions } from "./recipeFilter.js";
+import { filterRecipes, isActiveForSuggestions, sortByRecentlyAdded } from "./recipeFilter.js";
 
 const recipes = [
   { uid: "1", name: "Honey Garlic Chicken Thighs", ingredientsRaw: "chicken thighs", totalTimeMinutes: 35 },
@@ -41,4 +41,37 @@ test("isActiveForSuggestions is true for recipes with no skipped field", () => {
 
 test("isActiveForSuggestions is false once skipped is set", () => {
   assert.equal(isActiveForSuggestions({ name: "x", skipped: true }), false);
+});
+
+test("sortByRecentlyAdded orders newest addedAt first", () => {
+  const items = [
+    { uid: "old", addedAt: "2026-01-01T00:00:00.000Z" },
+    { uid: "newest", addedAt: "2026-07-25T00:00:00.000Z" },
+    { uid: "middle", addedAt: "2026-04-01T00:00:00.000Z" },
+  ];
+  assert.deepEqual(
+    sortByRecentlyAdded(items).map((r) => r.uid),
+    ["newest", "middle", "old"]
+  );
+});
+
+test("sortByRecentlyAdded sorts recipes with no addedAt to the end", () => {
+  const items = [
+    { uid: "no-date" },
+    { uid: "has-date", addedAt: "2026-01-01T00:00:00.000Z" },
+  ];
+  assert.deepEqual(
+    sortByRecentlyAdded(items).map((r) => r.uid),
+    ["has-date", "no-date"]
+  );
+});
+
+test("sortByRecentlyAdded does not mutate the input array", () => {
+  const items = [
+    { uid: "a", addedAt: "2026-01-01T00:00:00.000Z" },
+    { uid: "b", addedAt: "2026-02-01T00:00:00.000Z" },
+  ];
+  const original = items.slice();
+  sortByRecentlyAdded(items);
+  assert.deepEqual(items, original);
 });

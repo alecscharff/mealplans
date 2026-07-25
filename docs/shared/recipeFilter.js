@@ -26,3 +26,11 @@ export function filterRecipes(recipes, { query = "", protein = "", maxMinutes = 
 export function isActiveForSuggestions(recipe) {
   return !recipe.skipped;
 }
+
+// Newest-first by addedAt (an ISO timestamp string, so lexicographic order matches
+// chronological order — same trick as weekKey). Recipes with no addedAt (shouldn't
+// happen for anything added through the app, but be defensive) sort last rather than
+// crashing or floating to the top.
+export function sortByRecentlyAdded(recipes) {
+  return recipes.slice().sort((a, b) => (b.addedAt || "").localeCompare(a.addedAt || ""));
+}
