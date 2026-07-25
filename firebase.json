@@ -9,7 +9,7 @@
       "codebase": "default",
       "runtime": "nodejs20",
       "predeploy": [
-        "mkdir -p functions/shared && cp docs/shared/ingredientParser.js docs/shared/recipeScrape.js functions/shared/"
+        "mkdir -p functions/shared && cp docs/shared/ingredientParser.js docs/shared/recipeScrape.js docs/shared/packagingUnits.js functions/shared/"
       ]
     }
   ]

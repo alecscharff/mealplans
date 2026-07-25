@@ -93,8 +93,9 @@ git push                           # GitHub Pages auto-rebuilds docs/ on push to
 ```
 
 Cloud Functions v2 requires the Blaze (pay-as-you-go) plan — already set up. The
-`predeploy` hook in `firebase.json` copies `docs/shared/{ingredientParser,recipeScrape}.js`
-into `functions/shared/` before each deploy, since Firebase only bundles the
+`predeploy` hook in `firebase.json` copies
+`docs/shared/{ingredientParser,recipeScrape,packagingUnits}.js` into `functions/shared/`
+before each deploy, since Firebase only bundles the
 `functions/` directory — a cross-directory `../docs/shared/...` import would 404 in the
 deployed container otherwise. `functions/shared/` is generated, gitignored.
 
