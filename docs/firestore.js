@@ -80,8 +80,11 @@ export async function getWeekState(db, weekKey) {
   return snap.data();
 }
 
+// Stamps every write with when it happened, so callers that hold picks/candidates in
+// memory across an async gap (the Menu tab's Save/Shuffle) can detect that another tab
+// or device saved over this week in the meantime — see menu.js's staleness guard.
 export async function saveWeekState(db, weekKey, data) {
-  await setDoc(doc(db, "weekState", weekKey), data, { merge: true });
+  await setDoc(doc(db, "weekState", weekKey), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
 }
 
 export async function getAllWeekStates(db) {

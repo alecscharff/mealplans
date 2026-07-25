@@ -1,4 +1,4 @@
-import { saveWeekState } from "../firestore.js";
+import { saveWeekState, getWeekState } from "../firestore.js";
 import { generateCandidates } from "../shared/candidates.js";
 import { deriveTags, PROTEIN_TAG_OPTIONS } from "../shared/recipeTags.js";
 import { isActiveForSuggestions, filterRecipes, TIME_FILTER_OPTIONS } from "../shared/recipeFilter.js";
@@ -103,6 +103,22 @@ function renderWeekSection({
   let candidates = weekState.candidates.slice();
   let selected = weekState.picks.length > 0 ? weekState.picks.slice() : candidates.slice(0, 2);
   let pickerFilters = { query: "", protein: "", maxMinutes: null };
+
+  // Snapshot of when this week's data was as of this page load. There's no live sync
+  // (no realtime listener) — if another tab or device saves this same week before this
+  // one does, this tab's in-memory picks are stale and would silently clobber that
+  // other save with old data. Checked immediately before Save/Shuffle actually write.
+  const loadedUpdatedAt = weekState.updatedAt || null;
+
+  async function warnIfStale() {
+    const latest = await getWeekState(db, weekKey);
+    const latestUpdatedAt = latest?.updatedAt || null;
+    if (latestUpdatedAt === loadedUpdatedAt) return true;
+    return confirm(
+      "This week's picks were changed elsewhere (another tab or device) since this page loaded. " +
+        "Save anyway and overwrite that change? Choose Cancel, then reload this page, to see the latest picks first."
+    );
+  }
 
   // Recipes already showing up in any other displayed week — excluded from both the
   // shuffle pool and the all-recipes picker, so nothing can be suggested/picked twice
@@ -313,6 +329,11 @@ function renderWeekSection({
   saveButton.addEventListener("click", async () => {
     saveButton.disabled = true;
     saveButton.textContent = "Saving…";
+    if (!(await warnIfStale())) {
+      saveButton.disabled = false;
+      saveButton.textContent = "Save picks";
+      return;
+    }
     await saveWeekState(db, weekKey, { candidates, picks: selected });
     await refresh();
   });
@@ -320,6 +341,11 @@ function renderWeekSection({
   shuffleButton.addEventListener("click", async () => {
     shuffleButton.disabled = true;
     shuffleButton.textContent = "Shuffling…";
+    if (!(await warnIfStale())) {
+      shuffleButton.disabled = false;
+      shuffleButton.textContent = "Shuffle";
+      return;
+    }
     // Keep whatever is currently picked in place — only the unpicked alternatives get
     // reshuffled. Exclude recipes already showing up in any other displayed week, the
     // kept picks themselves, and recipes marked skipped (see shared/recipeFilter.js).
