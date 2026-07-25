@@ -8,12 +8,13 @@ planner, deadline auto-pick was removed). This README covers current state.
 ## What's built
 
 - `docs/shared/` — framework-free, unit-tested core logic
-  (`node --test docs/shared/*.test.js` — 99 tests): week key math, seeded shuffle,
+  (`node --test docs/shared/*.test.js` — 109 tests): week key math, seeded shuffle,
   candidate generation, week rollover/history, recipe-page JSON-LD scraping, ingredient
   parsing, grocery merge+scale, HelloFresh proprietary spice-blend lookup, protein/style
-  tag derivation, and recipe search/protein/time filtering. Lives under `docs/` (not a
-  top-level `shared/`) so GitHub Pages, which only publishes `docs/`, can serve it to the
-  frontend; `functions/` reaches it via a predeploy-copied `./shared/...` (see below).
+  tag derivation, recipe search/protein/time filtering, and instruction-step sentence
+  splitting. Lives under `docs/` (not a top-level `shared/`) so GitHub Pages, which only
+  publishes `docs/`, can serve it to the frontend; `functions/` reaches it via a
+  predeploy-copied `./shared/...` (see below).
 - `docs/` — the static frontend (vanilla JS ES modules, Firebase JS SDK via CDN, zero
   build step). Four tabs:
   - **Menu** — the current week plus 3 weeks ahead, each showing 2 picked recipes + 2
@@ -34,8 +35,9 @@ planner, deadline auto-pick was removed). This README covers current state.
     with inline delete; skipped recipes (see below) show dimmed.
   - **Settings** — family size.
   - Plus two views reached by navigation rather than a tab: **recipe detail**
-    (hero image, servings-adjustable ingredients, tap-to-cross-out steps with bold
-    ingredient mentions, source link) and **edit recipe** (editable name/image/
+    (hero image, servings-adjustable ingredients — defaulting to family size, with bold
+    ingredient names — instructions split into individually tap-to-cross-out lines with
+    bold ingredient mentions, source link) and **edit recipe** (editable name/image/
     servings/cook time/ingredients/steps, "Refresh from source" to re-scrape, a
     Skip/Include-in-rotation toggle, delete).
 - `functions/` — one Cloud Function, `scrapeRecipeUrl`, an HTTPS callable that fetches a
@@ -124,7 +126,15 @@ deployed container otherwise. `functions/shared/` is generated, gitignored.
   items land in the wrong bucket.
 - **Grocery scaling**: each recipe scales by its own `servings` relative to
   `settings.familySize`, falling back to an assumed 4 servings if a source page didn't
-  publish a yield.
+  publish a yield. The recipe detail view's servings field mirrors this — it defaults to
+  `settings.familySize`, not the recipe's own yield, so ingredient quantities are already
+  scaled to the household when the page opens rather than showing the recipe's original
+  (often HelloFresh's default of 2) quantities until you manually retype the number.
+- **Instruction lines** (`docs/shared/stepLines.js`): a scraped/authored step often
+  bundles a few actions into one run-on sentence — `splitStepIntoLines` breaks each step
+  into its component sentences at render time (a display transform; `recipe.directions`
+  itself is untouched) so the cooking page's checklist can cross off one action at a
+  time instead of a whole multi-action step at once.
 - **HelloFresh spice blends** (`docs/shared/hellofreshSpiceBlends.js`): 38
   community-sourced blend ratios (e.g. "Shawarma Spice Blend"), matched against
   ingredient names so the grocery list and recipe detail view can show what to mix

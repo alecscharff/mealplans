@@ -2,12 +2,8 @@ import { saveWeekState } from "../firestore.js";
 import { createRecipeThumb } from "./recipeImage.js";
 import { createSpiceBlendNote } from "./spiceBlendNote.js";
 import { appendBoldMarkedText } from "./boldText.js";
-import { formatQuantityLine } from "../shared/quantityFormat.js";
-
-function formatScaledQuantity(item, scale) {
-  if (item.quantity == null) return item.raw;
-  return formatQuantityLine(item.name, item.quantity * scale, item.unit);
-}
+import { formatQuantityParts } from "../shared/quantityFormat.js";
+import { splitStepIntoLines } from "../shared/stepLines.js";
 
 export function renderRecipeDetail(container, ctx, refresh) {
   const { recipesByUid, weekState, currentWeekKey, settings, db, navigate, params } = ctx;
@@ -62,7 +58,14 @@ export function renderRecipeDetail(container, ctx, refresh) {
     container.appendChild(link);
   }
 
-  const baseServings = recipe.servings || settings.familySize || 4;
+  // recipeServings is what the ingredient quantities are actually written for (the
+  // scaling denominator — same "assumed 4 servings" fallback buildGroceryList uses
+  // for a recipe with no published yield). The servings field should default to
+  // familySize so the list is already scaled to the household on open, matching the
+  // grocery list's behavior — not to recipeServings, which would show a scale of 1
+  // (the recipe's original, unscaled quantities) whenever the two numbers differ.
+  const recipeServings = recipe.servings || 4;
+  const initialServings = settings.familySize || recipeServings;
 
   const servingsLabel = document.createElement("label");
   servingsLabel.className = "servings-label";
@@ -70,7 +73,7 @@ export function renderRecipeDetail(container, ctx, refresh) {
   const servingsInput = document.createElement("input");
   servingsInput.type = "number";
   servingsInput.min = "1";
-  servingsInput.value = baseServings;
+  servingsInput.value = initialServings;
   servingsLabel.appendChild(servingsInput);
   container.appendChild(servingsLabel);
 
@@ -82,10 +85,18 @@ export function renderRecipeDetail(container, ctx, refresh) {
 
   function renderIngredients() {
     ingredientsList.innerHTML = "";
-    const scale = Number(servingsInput.value || baseServings) / baseServings;
+    const scale = Number(servingsInput.value || initialServings) / recipeServings;
     for (const item of recipe.ingredientsParsed) {
       const li = document.createElement("li");
-      li.textContent = formatScaledQuantity(item, scale);
+      if (item.quantity == null) {
+        li.textContent = item.raw;
+      } else {
+        const { prefix, name: ingredientName } = formatQuantityParts(item.name, item.quantity * scale, item.unit);
+        li.appendChild(document.createTextNode(prefix));
+        const strong = document.createElement("strong");
+        strong.textContent = ingredientName;
+        li.appendChild(strong);
+      }
       const blendNote = createSpiceBlendNote(item.name);
       if (blendNote) li.appendChild(blendNote);
       ingredientsList.appendChild(li);
@@ -98,13 +109,18 @@ export function renderRecipeDetail(container, ctx, refresh) {
   stepsHeading.textContent = "Steps";
   container.appendChild(stepsHeading);
 
+  // Each instruction step often bundles a few discrete actions into one run-on
+  // sentence — split those into individual lines so they can be crossed off one at a
+  // time while cooking, instead of the whole step disappearing at once.
+  const lines = recipe.directions.flatMap((step) => splitStepIntoLines(step));
+
   const stepChecks = { ...(weekState.stepChecks?.[recipe.uid] || {}) };
   const stepsList = document.createElement("ol");
   stepsList.className = "step-list";
-  recipe.directions.forEach((step, i) => {
+  lines.forEach((line, i) => {
     const li = document.createElement("li");
     li.className = "step-item" + (stepChecks[i] ? " checked" : "");
-    appendBoldMarkedText(li, step);
+    appendBoldMarkedText(li, line);
     li.addEventListener("click", async () => {
       stepChecks[i] = !stepChecks[i];
       li.classList.toggle("checked", stepChecks[i]);

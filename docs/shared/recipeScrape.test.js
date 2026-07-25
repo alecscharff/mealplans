@@ -22,6 +22,23 @@ test("extractJsonLd parses a single script block", () => {
   assert.equal(blocks[0].name, "Soup");
 });
 
+test("extractJsonLd parses a block with an unquoted type attribute (WordPress/Yoast SEO)", () => {
+  // Yoast SEO (a very common WordPress plugin, used by e.g. loveandlemons.com) emits
+  // this tag unquoted — valid HTML5, but a quotes-required regex silently matches
+  // nothing, so this guards against that regressing.
+  const html = `<script type=application/ld+json class=yoast-schema-graph>{"@type":"Recipe","name":"Soup"}</script>`;
+  const blocks = extractJsonLd(html);
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].name, "Soup");
+});
+
+test("extractJsonLd parses a block with a single-quoted type attribute", () => {
+  const html = `<script type='application/ld+json'>{"@type":"Recipe","name":"Soup"}</script>`;
+  const blocks = extractJsonLd(html);
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].name, "Soup");
+});
+
 test("extractJsonLd skips malformed blocks and keeps valid ones", () => {
   const html = `
     <script type="application/ld+json">{not valid json}</script>

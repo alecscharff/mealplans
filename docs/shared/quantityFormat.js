@@ -18,11 +18,19 @@ const PLURAL_UNITS = {
   sprig: "sprigs",
 };
 
-export function formatQuantityLine(name, quantity, unit) {
+// Same formatting as formatQuantityLine, but split into a plain-text quantity/unit
+// prefix and the bare ingredient name — lets callers (recipe detail view) render the
+// name in bold without re-parsing the combined string back apart.
+export function formatQuantityParts(name, quantity, unit) {
   const rounded = Math.round(quantity * 100) / 100;
   // "unit" is HelloFresh's placeholder for "whole item, no real measurement" — the
   // word itself adds nothing for shopping ("2 unit Onion"), so it's omitted.
-  if (!unit || unit === "unit") return `${rounded} ${name}`;
+  if (!unit || unit === "unit") return { prefix: `${rounded} `, name };
   const displayUnit = rounded !== 1 ? PLURAL_UNITS[unit] || unit : unit;
-  return `${rounded} ${displayUnit} ${name}`;
+  return { prefix: `${rounded} ${displayUnit} `, name };
+}
+
+export function formatQuantityLine(name, quantity, unit) {
+  const { prefix, name: displayName } = formatQuantityParts(name, quantity, unit);
+  return `${prefix}${displayName}`;
 }

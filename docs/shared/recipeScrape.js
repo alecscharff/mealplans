@@ -49,7 +49,13 @@ function splitStepBullets(html) {
 
 export function extractJsonLd(html) {
   const blocks = [];
-  const re = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  // Quotes around the type value are optional per HTML5 (unquoted attributes are
+  // valid as long as they contain no whitespace) — WordPress's Yoast SEO plugin emits
+  // exactly this, unquoted (`type=application/ld+json`), which a quotes-required regex
+  // silently fails to match at all. Confirmed against loveandlemons.com, a real site
+  // hit via the Add Recipe flow that was returning "No recipe data found" despite
+  // having a valid Recipe JSON-LD block on the page.
+  const re = /<script[^>]+type=["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi;
   let match;
   while ((match = re.exec(html))) {
     try {
