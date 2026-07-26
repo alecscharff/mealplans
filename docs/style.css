@@ -743,6 +743,14 @@ main#app ol {
   text-align: center;
 }
 
+/* The single flex item holding the step's actual text (see recipeDetail.js) — flex:1
+   takes the row's remaining width; its own children (plain text + <strong> bold
+   marks) then wrap together as one normal paragraph instead of each becoming its own
+   flex item and getting squeezed into a separate narrow column. */
+.step-text {
+  flex: 1;
+}
+
 .step-item.checked {
   text-decoration: line-through;
   color: var(--ink-faint);

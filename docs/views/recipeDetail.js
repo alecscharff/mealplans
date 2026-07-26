@@ -120,7 +120,16 @@ export function renderRecipeDetail(container, ctx, refresh) {
   lines.forEach((line, i) => {
     const li = document.createElement("li");
     li.className = "step-item" + (stepChecks[i] ? " checked" : "");
-    appendBoldMarkedText(li, line);
+    // .step-item is display:flex (for the ::before step-number counter alongside the
+    // text). Bold-marked text is several sibling nodes (text nodes + <strong>s) — if
+    // appended straight onto the flex container, each one becomes its own flex item
+    // and gets squeezed into its own narrow column instead of flowing as one
+    // paragraph. Wrapping them in a single span makes that span the one flex item;
+    // its own children lay out as normal inline text.
+    const textEl = document.createElement("span");
+    textEl.className = "step-text";
+    appendBoldMarkedText(textEl, line);
+    li.appendChild(textEl);
     li.addEventListener("click", async () => {
       stepChecks[i] = !stepChecks[i];
       li.classList.toggle("checked", stepChecks[i]);
