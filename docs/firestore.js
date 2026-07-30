@@ -99,3 +99,13 @@ export async function markWeekArchived(db, weekKey) {
 export async function appendHistory(db, entry) {
   await setDoc(doc(db, "history", entry.weekKey), entry, { merge: true });
 }
+
+// Every past week that had picks when it rolled over (see shared/rollover.js), newest
+// first — weekKey is a Monday-of-week YYYY-MM-DD string, so lexicographic comparison
+// matches chronological order (same trick used throughout this codebase).
+export async function getHistory(db) {
+  const snap = await getDocs(collection(db, "history"));
+  return snap.docs
+    .map((d) => ({ weekKey: d.id, ...d.data() }))
+    .sort((a, b) => (a.weekKey < b.weekKey ? 1 : -1));
+}

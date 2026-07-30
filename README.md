@@ -8,15 +8,15 @@ planner, deadline auto-pick was removed). This README covers current state.
 ## What's built
 
 - `docs/shared/` — framework-free, unit-tested core logic
-  (`node --test docs/shared/*.test.js` — 109 tests): week key math, seeded shuffle,
+  (`node --test docs/shared/*.test.js` — 114 tests): week key math, seeded shuffle,
   candidate generation, week rollover/history, recipe-page JSON-LD scraping, ingredient
   parsing, grocery merge+scale, HelloFresh proprietary spice-blend lookup, protein/style
-  tag derivation, recipe search/protein/time filtering, and instruction-step sentence
-  splitting. Lives under `docs/` (not a top-level `shared/`) so GitHub Pages, which only
-  publishes `docs/`, can serve it to the frontend; `functions/` reaches it via a
-  predeploy-copied `./shared/...` (see below).
+  tag derivation, recipe search/protein/time filtering/recency sorting, and
+  instruction-step sentence splitting. Lives under `docs/` (not a top-level `shared/`)
+  so GitHub Pages, which only publishes `docs/`, can serve it to the frontend;
+  `functions/` reaches it via a predeploy-copied `./shared/...` (see below).
 - `docs/` — the static frontend (vanilla JS ES modules, Firebase JS SDK via CDN, zero
-  build step). Four tabs:
+  build step). Five tabs:
   - **Menu** — the current week plus 3 weeks ahead, each showing 2 picked recipes + 2
     alternatives (click any card to swap it in/out of the picks, or Shuffle to reroll
     the alternatives only — current picks stay put) plus a "Pick from all recipes"
@@ -29,6 +29,12 @@ planner, deadline auto-pick was removed). This README covers current state.
     Recipe A / Recipe B toggle to see just one recipe's ingredients. Ingredients
     matching a known HelloFresh proprietary spice blend (e.g. "Shawarma Spice Blend")
     get an expandable "mix your own" note with the actual ratios.
+  - **History** — every past week that had picks when it rolled over, newest first,
+    reading the `history` collection (written on rollover, previously unread by the
+    frontend). A week's Menu/Grocery data only exists for the current week plus 3 ahead
+    — once a week rolls past, this is the only place left to see what was picked and
+    reopen those recipes. Recipes no longer in the rotation show a note instead of a
+    broken link.
   - **Add Recipe** — paste a URL, preview the scraped result, save it. Re-submitting a
     URL already in the rotation updates that recipe instead of duplicating it. Below
     the form, the full recipe list — searchable/filterable by protein and cook time,
@@ -155,6 +161,28 @@ deployed container otherwise. `functions/shared/` is generated, gitignored.
   generation (`shared/recipeFilter.js#isActiveForSuggestions`, applied in `app.js` and
   the Shuffle handler) without hiding it anywhere else — `recipesByUid` and the Add
   Recipe/picker lists always include it.
+- **Multi-tab staleness guard**: there's no realtime sync between open tabs/devices, so
+  `saveWeekState` (`docs/firestore.js`) stamps every write with `updatedAt`. Before
+  Save/Shuffle actually write, the Menu tab (`docs/views/menu.js`) re-fetches the
+  server's current `updatedAt` and compares it to what the tab loaded — if another tab
+  saved this same week in the meantime, it warns before overwriting instead of silently
+  clobbering the other tab's picks.
+- **Re-submitting a URL for a recipe assembled from multiple linked recipes**: some
+  source pages (e.g. Love & Lemons "bowl"/assembly recipes) only link out to separate
+  component recipes instead of listing everything inline. If such a recipe was manually
+  built up from those linked pages, re-pasting the *original* URL through Add Recipe
+  will offer to "Update existing recipe" and silently overwrite the fuller version with
+  whatever sparse content is actually on that one page — this happened for real to the
+  "Peach Salsa Halloumi Bowls" recipe. There's no guard against this; if a recipe's
+  ingredients ever look suspiciously sparse (e.g. `"1 recipe Coconut Rice"` instead of
+  real ingredients), check whether it was hand-assembled from multiple pages before
+  trusting a re-scrape.
+- **History** (`docs/views/history.js`, `firestore.js#getHistory`): reads the `history`
+  collection that `computeRollover` already wrote on every past rollover (previously
+  write-only — nothing in the frontend read it back). A completed week only gets a
+  `history` entry if it had picks when it rolled over; a week with none archives
+  silently. Recipe links resolve through the live `recipesByUid`, so a recipe deleted
+  after being cooked shows a "no longer in your rotation" note instead of a dead link.
 
 ## Running the tests
 

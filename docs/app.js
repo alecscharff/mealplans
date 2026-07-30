@@ -7,6 +7,7 @@ import {
   getAllWeekStates,
   markWeekArchived,
   appendHistory,
+  getHistory,
   updateRecipeLastCooked,
 } from "./firestore.js";
 import { weekKey as computeWeekKey, addWeeks } from "./shared/weekKey.js";
@@ -15,6 +16,7 @@ import { computeRollover } from "./shared/rollover.js";
 import { isActiveForSuggestions } from "./shared/recipeFilter.js";
 import { renderMenu } from "./views/menu.js";
 import { renderGrocery } from "./views/grocery.js";
+import { renderHistory } from "./views/history.js";
 import { renderSettings } from "./views/settings.js";
 import { renderAddRecipe } from "./views/addRecipe.js";
 import { renderRecipeDetail } from "./views/recipeDetail.js";
@@ -26,6 +28,7 @@ const statusEl = document.getElementById("status");
 const views = {
   menu: renderMenu,
   grocery: renderGrocery,
+  history: renderHistory,
   settings: renderSettings,
   addRecipe: renderAddRecipe,
   detail: renderRecipeDetail,
@@ -124,7 +127,9 @@ async function loadState(db) {
     upcomingWeeks.push({ weekKey, weekState: ws });
   }
 
-  return { db, settings, recipeCache, currentWeekKey, weekState, recipesByUid, upcomingWeeks };
+  const history = await getHistory(db);
+
+  return { db, settings, recipeCache, currentWeekKey, weekState, recipesByUid, upcomingWeeks, history };
 }
 
 async function refresh() {
