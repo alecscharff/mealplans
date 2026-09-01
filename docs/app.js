@@ -9,8 +9,9 @@ import {
   appendHistory,
   getHistory,
   updateRecipeLastCooked,
+  migrateLegacyWeekKey,
 } from "./firestore.js";
-import { weekKey as computeWeekKey, addWeeks } from "./shared/weekKey.js";
+import { weekKey as computeWeekKey, addWeeks, addDays } from "./shared/weekKey.js";
 import { generateCandidates } from "./shared/candidates.js";
 import { computeRollover } from "./shared/rollover.js";
 import { isActiveForSuggestions } from "./shared/recipeFilter.js";
@@ -118,6 +119,9 @@ async function loadState(db) {
   const upcomingWeeks = [];
   const usedUids = new Set();
   for (const weekKey of weekKeys) {
+    // One-time carry-over for the Monday->Sunday week-anchor change — see
+    // firestore.js#migrateLegacyWeekKey. No-ops once every live week has migrated.
+    await migrateLegacyWeekKey(db, weekKey, addDays(weekKey, 1));
     const availableRecipes = suggestibleRecipes.filter((r) => !usedUids.has(r.uid));
     const ws = await ensureWeek(db, weekKey, settings, availableRecipes);
 

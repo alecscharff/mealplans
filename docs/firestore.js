@@ -8,6 +8,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  deleteDoc,
   collection,
   getDocs,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
@@ -96,12 +97,27 @@ export async function markWeekArchived(db, weekKey) {
   await setDoc(doc(db, "weekState", weekKey), { archived: true }, { merge: true });
 }
 
+// One-time migration for the Monday->Sunday week-anchor change (see shared/weekKey.js).
+// A week saved before that change lives under its old Monday key, exactly 1 day after
+// its new Sunday key. If that new key has no doc yet, move the old doc's data over so
+// in-progress picks/candidates/grocery-checks aren't orphaned, then remove the old doc.
+// No-op once migrated (or if the week was created after the anchor change).
+export async function migrateLegacyWeekKey(db, newWeekKey, legacyWeekKey) {
+  const newSnap = await getDoc(doc(db, "weekState", newWeekKey));
+  if (newSnap.exists()) return;
+  const legacyRef = doc(db, "weekState", legacyWeekKey);
+  const legacySnap = await getDoc(legacyRef);
+  if (!legacySnap.exists() || legacySnap.data().archived) return;
+  await setDoc(doc(db, "weekState", newWeekKey), legacySnap.data());
+  await deleteDoc(legacyRef);
+}
+
 export async function appendHistory(db, entry) {
   await setDoc(doc(db, "history", entry.weekKey), entry, { merge: true });
 }
 
 // Every past week that had picks when it rolled over (see shared/rollover.js), newest
-// first — weekKey is a Monday-of-week YYYY-MM-DD string, so lexicographic comparison
+// first — weekKey is a Sunday-of-week YYYY-MM-DD string, so lexicographic comparison
 // matches chronological order (same trick used throughout this codebase).
 export async function getHistory(db) {
   const snap = await getDocs(collection(db, "history"));

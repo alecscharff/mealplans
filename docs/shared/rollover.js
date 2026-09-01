@@ -13,7 +13,7 @@ export function computeRollover(weekStates, currentWeekKey, now = new Date()) {
   const archivedWeekKeys = [];
 
   for (const week of weekStates) {
-    // weekKey is a Monday-of-week YYYY-MM-DD string, so lexicographic comparison
+    // weekKey is a Sunday-of-week YYYY-MM-DD string, so lexicographic comparison
     // matches chronological order. Only archive weeks strictly before the current
     // one — weeks planned ahead of time (see the 4-week menu view) must sit
     // untouched until their own week actually arrives.
