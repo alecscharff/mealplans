@@ -7,6 +7,7 @@
 // narrow regex to locate them (not to parse HTML generally) is enough.
 
 import { parseIngredientsRaw } from "./ingredientParser.js";
+import { canonicalRecipeUrl } from "./canonicalUrl.js";
 
 const HTML_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", apos: "'", nbsp: " " };
 
@@ -136,12 +137,11 @@ export function normalizeYield(recipeYield) {
 // Parses an ISO 8601 duration like "PT35M" or "PT1H10M" into whole minutes.
 export function parseDurationMinutes(duration) {
   if (!duration || typeof duration !== "string") return null;
-  const match = duration.match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/);
+  const match = duration.match(/^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/i);
   if (!match) return null;
-  const hours = match[1] ? parseInt(match[1], 10) : 0;
-  const minutes = match[2] ? parseInt(match[2], 10) : 0;
-  if (hours === 0 && minutes === 0 && !match[1] && !match[2]) return null;
-  return hours * 60 + minutes;
+  const [, years, months, weeks, days, hours, minutes, seconds] = match;
+  const total = Number(years || 0) * 525600 + Number(months || 0) * 43800 + Number(weeks || 0) * 10080 + Number(days || 0) * 1440 + Number(hours || 0) * 60 + Number(minutes || 0) + Number(seconds || 0) / 60;
+  return total > 0 ? Math.round(total) : null;
 }
 
 // Prefers totalTime; falls back to summing prepTime + cookTime when a page only
@@ -163,6 +163,25 @@ export function scrapeRecipeFromHtml(html, sourceUrl) {
   }
   if (!recipe) return null;
 
+  // Prefer an HTTP(S) publisher canonical link when it belongs to the page's
+  // publisher; otherwise retain the canonicalized URL we fetched.
+  let identityUrl = canonicalRecipeUrl(sourceUrl);
+  const source = (() => { try { return new URL(sourceUrl); } catch { return null; } })();
+  if (source && /^https?:$/.test(source.protocol)) {
+    const tags = String(html).match(/<link\b[^>]*>/gi) || [];
+    for (const tag of tags) {
+      const attrs = Object.fromEntries([...tag.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)].map((m) => [m[1].toLowerCase(), m[2] ?? m[3] ?? m[4]]));
+      if (!attrs.rel?.toLowerCase().split(/\s+/).includes("canonical") || !attrs.href) continue;
+      try {
+        const candidate = new URL(attrs.href.replace(/&amp;/g, "&"), source);
+        if (/^https?:$/.test(candidate.protocol) && candidate.hostname.replace(/^www\./, "") === source.hostname.replace(/^www\./, "")) {
+          identityUrl = canonicalRecipeUrl(candidate.href);
+          break;
+        }
+      } catch { /* ignore malformed canonical links */ }
+    }
+  }
+
   const ingredientLines = (recipe.recipeIngredient || recipe.ingredients || []).map((line) =>
     stripHtml(line)
   );
@@ -170,7 +189,7 @@ export function scrapeRecipeFromHtml(html, sourceUrl) {
 
   return {
     name: recipe.name ? stripHtml(recipe.name) : "Untitled recipe",
-    sourceUrl,
+    sourceUrl: identityUrl,
     servings: normalizeYield(recipe.recipeYield),
     image: normalizeImage(recipe.image),
     totalTimeMinutes: normalizeTotalTimeMinutes(recipe),

@@ -2,6 +2,9 @@
 // by a rough grocery category (produce, dairy, etc.) for easier in-store shopping.
 
 const CATEGORY_KEYWORDS = [
+  ["Spices & Seasonings", ["black pepper", "garlic powder", "onion powder", "turmeric", "salt", "pepper flakes", "cumin", "paprika", "oregano", "cinnamon", "chili powder", "curry", "spice", "seasoning", "bay leaf", "thyme", "rosemary"]],
+  ["Pantry", ["vinegar", "flour", "sugar", "rice", "pasta", "oil", "sauce", "broth", "stock", "beans", "lentil", "can", "canned", "tomato paste", "honey", "syrup", "baking powder", "baking soda", "vanilla"]],
+  ["Dairy & Eggs", ["paneer", "milk", "cheese", "butter", "cream", "yogurt", "egg", "sour cream", "mozzarella", "parmesan", "cheddar"]],
   ["Produce", ["onion", "garlic", "pepper", "tomato", "lettuce", "spinach", "carrot",
     "celery", "potato", "broccoli", "cucumber", "lemon", "lime", "apple", "avocado",
     "cilantro", "parsley", "basil", "scallion", "mushroom", "zucchini", "kale", "ginger"]],
@@ -11,11 +14,6 @@ const CATEGORY_KEYWORDS = [
     "mozzarella", "parmesan", "cheddar"]],
   ["Bakery", ["bread", "bun", "roll", "tortilla", "bagel", "pita"]],
   ["Frozen", ["frozen"]],
-  ["Spices & Seasonings", ["salt", "pepper", "cumin", "paprika", "oregano", "cinnamon",
-    "chili powder", "curry", "spice", "seasoning", "bay leaf", "thyme", "rosemary"]],
-  ["Pantry", ["flour", "sugar", "rice", "pasta", "oil", "vinegar", "sauce", "broth",
-    "stock", "beans", "lentil", "can", "canned", "tomato paste", "honey", "syrup",
-    "baking powder", "baking soda", "vanilla", "stock"]],
 ];
 
 export function categorizeIngredient(name) {

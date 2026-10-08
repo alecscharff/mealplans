@@ -13,9 +13,7 @@ export function filterRecipes(recipes, { query = "", protein = "", maxMinutes = 
   return recipes.filter((recipe) => {
     if (q && !recipe.name.toLowerCase().includes(q)) return false;
     if (protein && deriveProteinTag(recipe) !== protein) return false;
-    if (maxMinutes != null && recipe.totalTimeMinutes != null && recipe.totalTimeMinutes > maxMinutes) {
-      return false;
-    }
+    if (maxMinutes != null && (recipe.totalTimeMinutes == null || recipe.totalTimeMinutes > maxMinutes)) return false;
     return true;
   });
 }

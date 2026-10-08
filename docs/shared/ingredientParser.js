@@ -162,6 +162,11 @@ export function parseIngredientLine(rawLine) {
   }
 
   let { value: quantity, rest } = quantityResult;
+  // A range is already uncertain. Keep its source wording instead of averaging it
+  // into a false exact value; similarly keep package-weight parentheticals intact.
+  if (/^\s*\d+(?:\s+\d+\/\d+|\/\d+|\.\d+)?\s*(?:-|–|to)\s*\d/i.test(normalized) || /\([^)]*\b(?:about|approx|approximately|pounds?|ounces?|g|kg)\b[^)]*\)/i.test(raw)) {
+    return { quantity: null, unit: null, name: raw, raw };
+  }
   rest = rest.trim();
 
   let unit = null;

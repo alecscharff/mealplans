@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateCandidates } from "./candidates.js";
+import { generateCandidates, replaceCandidate } from "./candidates.js";
 
 function recipe(uid, lastCooked) {
   return { uid, name: uid, lastCooked };
@@ -29,4 +29,12 @@ test("generateCandidates is deterministic for a given weekKey + seed", () => {
   const a = generateCandidates(recipes, "2026-07-13", "family-seed");
   const b = generateCandidates(recipes, "2026-07-13", "family-seed");
   assert.deepEqual(a, b);
+});
+
+test("replaceCandidate does not duplicate a recipe already in the alternative pool", () => {
+  assert.deepEqual(replaceCandidate(["a", "b", "c"], "a", "c"), ["a", "b", "c"]);
+});
+
+test("replaceCandidate swaps a newly chosen recipe into the replaced slot", () => {
+  assert.deepEqual(replaceCandidate(["a", "b", "c"], "a", "d"), ["d", "b", "c"]);
 });

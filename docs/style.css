@@ -97,6 +97,8 @@ a {
   overflow-x: auto;
 }
 
+.recipe-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.7rem 0; }
+
 .tab-button {
   flex: 1;
   padding: 0.5rem 0.9rem;
@@ -612,6 +614,8 @@ form.settings-form {
   box-shadow: var(--shadow-sm);
 }
 
+form[hidden], [hidden] { display: none !important; }
+
 form.settings-form label {
   display: grid;
   gap: 0.3rem;
@@ -727,6 +731,8 @@ main#app ol {
   transition: opacity 0.15s ease;
 }
 
+.step-item input[type="checkbox"] { width: 1.2rem; height: 1.2rem; accent-color: var(--sage); flex: 0 0 auto; margin: 0.15rem 0.25rem 0 0; }
+
 .step-item:last-child {
   border-bottom: none;
 }
@@ -760,3 +766,19 @@ main#app ol {
 .step-item.checked::before {
   color: var(--ink-faint);
 }
+
+@media (max-width: 600px) {
+  body { padding: 0 0.75rem calc(5.8rem + env(safe-area-inset-bottom)); }
+  .app-header { margin: 0 -0.75rem; padding-left: 0.75rem; padding-right: 0.75rem; }
+  .tabs { position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; margin: 0; border-radius: 14px 14px 0 0; padding: 0.35rem 0.4rem calc(0.35rem + env(safe-area-inset-bottom)); box-shadow: 0 -4px 18px rgba(44, 33, 24, 0.18); overflow: visible; }
+  .tab-button { min-width: 0; min-height: 44px; padding: 0.45rem 0.25rem; font-size: 0.75rem; white-space: normal; }
+  .week-header { align-items: flex-start; flex-direction: column; }
+  .week-header-actions { width: 100%; }
+  .week-nav { gap: 0.3rem; align-items: center; }
+  .week-nav .pick-button { font-size: 0.75rem; padding: 0.45rem 0.65rem; }
+  .week-nav-label { white-space: nowrap; font-size: 1.05rem; }
+  .recipe-card { padding: 0.75rem; gap: 0.6rem; }
+  button.pick-button, .tab-button, .chip-delete { min-height: 44px; }
+}
+
+form.settings-form[hidden] { display: none !important; }

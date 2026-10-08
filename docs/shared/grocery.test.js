@@ -7,6 +7,10 @@ test("categorizeIngredient buckets common ingredients", () => {
   assert.equal(categorizeIngredient("chicken breast"), "Meat & Seafood");
   assert.equal(categorizeIngredient("cheddar cheese"), "Dairy & Eggs");
   assert.equal(categorizeIngredient("all-purpose flour"), "Pantry");
+  assert.equal(categorizeIngredient("black pepper"), "Spices & Seasonings");
+  assert.equal(categorizeIngredient("garlic powder"), "Spices & Seasonings");
+  assert.equal(categorizeIngredient("paneer"), "Dairy & Eggs");
+  assert.equal(categorizeIngredient("apple cider vinegar"), "Pantry");
   assert.equal(categorizeIngredient("unobtainium"), "Other");
 });
 

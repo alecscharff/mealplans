@@ -20,6 +20,12 @@ test("deriveProteinTag detects beef, pork, and seafood", () => {
   assert.equal(deriveProteinTag({ name: "Lemon Salmon", ingredientsRaw: "12 oz Salmon" }), "Seafood");
 });
 
+test("prefers the main recipe title, supports sirloin, and allows an explicit tag", () => {
+  assert.equal(deriveProteinTag({ name: "Bolognese", ingredientsRaw: "sirloin" }), "Beef");
+  assert.equal(deriveProteinTag({ name: "Chicken Zucchini Meatballs", ingredientsRaw: "optional turkey" }), "Chicken");
+  assert.equal(deriveProteinTag({ name: "Pasta", proteinTag: "Seafood", ingredientsRaw: "vegetables" }), "Seafood");
+});
+
 test("deriveProteinTag defaults to Vegetarian when no meat keyword is present", () => {
   assert.equal(deriveProteinTag({ name: "Creamy Butternut Squash Cavatappi", ingredientsRaw: "1 cup Kale" }), "Vegetarian");
 });

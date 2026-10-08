@@ -1,5 +1,5 @@
 import { buildGroceryList } from "../shared/grocery.js";
-import { saveWeekState } from "../firestore.js";
+import { updateWeekCheck } from "../firestore.js";
 import { createRecipeThumb } from "./recipeImage.js";
 import { createSpiceBlendNote } from "./spiceBlendNote.js";
 import { formatWeekLabel } from "./weekLabel.js";
@@ -17,7 +17,8 @@ function formatQuantity(item) {
 export function renderGrocery(container, ctx, refresh) {
   const { upcomingWeeks, currentWeekKey, recipesByUid, settings, db, navigate } = ctx;
 
-  let weekIndex = upcomingWeeks.findIndex((w) => w.weekKey === currentWeekKey);
+  const targetWeekKey = ctx.params?.weekKey || currentWeekKey;
+  let weekIndex = upcomingWeeks.findIndex((w) => w.weekKey === targetWeekKey);
   if (weekIndex < 0) weekIndex = 0;
 
   const nav = document.createElement("div");
@@ -42,7 +43,7 @@ export function renderGrocery(container, ctx, refresh) {
 
   // Which of this week's 2 picks currently feed the merged list below — "both" by
   // default. Local UI state only (not persisted), reset whenever the week changes.
-  let recipeFilter = "both";
+  let recipeFilter = ctx.params?.recipeFilter || "both";
 
   function renderBody() {
     body.innerHTML = "";
@@ -73,7 +74,7 @@ export function renderGrocery(container, ctx, refresh) {
       link.type = "button";
       link.className = "recipe-name-link";
       link.textContent = recipe.name;
-      link.addEventListener("click", () => navigate("detail", { uid: recipe.uid, from: "grocery" }));
+      link.addEventListener("click", () => navigate("detail", { uid: recipe.uid, from: "grocery", weekKey, backParams: { weekKey, recipeFilter } }));
       chip.appendChild(link);
 
       recipesList.appendChild(chip);
@@ -113,6 +114,9 @@ export function renderGrocery(container, ctx, refresh) {
 
     const grouped = buildGroceryList(activeRecipes, settings.familySize);
     const checks = { ...weekState.groceryChecks };
+    const status = document.createElement("p");
+    status.setAttribute("role", "status");
+    body.appendChild(status);
 
     for (const [category, items] of Object.entries(grouped)) {
       const section = document.createElement("div");
@@ -132,11 +136,11 @@ export function renderGrocery(container, ctx, refresh) {
 
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
-        checkbox.id = key;
+        checkbox.id = `grocery-${weekKey}-${Object.keys(checks).length}-${Math.random().toString(36).slice(2, 7)}`;
         checkbox.checked = !!checks[key];
 
         const label = document.createElement("label");
-        label.htmlFor = key;
+        label.htmlFor = checkbox.id;
         label.textContent = item.recipeName
           ? `${item.raw} (${item.recipeName})`
           : formatQuantity(item);
@@ -144,7 +148,18 @@ export function renderGrocery(container, ctx, refresh) {
         checkbox.addEventListener("change", async () => {
           checks[key] = checkbox.checked;
           row.classList.toggle("checked", checkbox.checked);
-          await saveWeekState(db, weekKey, { groceryChecks: checks });
+          checkbox.disabled = true;
+          try {
+            const updatedAt = await updateWeekCheck(db, weekKey, "grocery", key, checkbox.checked);
+            weekState.groceryChecks = { ...checks };
+            weekState.updatedAt = updatedAt;
+            status.textContent = "Checklist saved.";
+          } catch (err) {
+            checkbox.checked = !checkbox.checked;
+            checks[key] = checkbox.checked;
+            row.classList.toggle("checked", checkbox.checked);
+            status.textContent = `Couldn't save checklist: ${err.message}. Try again.`;
+          } finally { checkbox.disabled = false; }
         });
 
         main.appendChild(checkbox);

@@ -1,0 +1,265 @@
+{
+  "checkedAt": "2026-10-08T16:00:46.787Z",
+  "results": [
+    {
+      "name": "Egg Roll in a Bowl",
+      "url": "https://40aprons.com/whole30-egg-roll-bowl-paleo/",
+      "status": 200,
+      "importedName": "Healthy Egg Roll in a Bowl with Coleslaw Mix",
+      "ingredients": 18,
+      "steps": 9,
+      "totalTimeMinutes": 35,
+      "error": null
+    },
+    {
+      "name": "Instant Pot Matar Paneer",
+      "url": "https://twosleevers.com/instant-pot-indian-matar-paneer/",
+      "status": 200,
+      "importedName": "Matar Paneer Recipe | Instant Pot Indian Matar Paneer",
+      "ingredients": 15,
+      "steps": 5,
+      "totalTimeMinutes": 35,
+      "error": null
+    },
+    {
+      "name": "Parker's Split Pea Soup",
+      "url": "https://www.foodnetwork.com/recipes/ina-garten/parkers-split-pea-soup-recipe-1916855",
+      "status": 200,
+      "importedName": "Parker's Split Pea Soup",
+      "ingredients": 10,
+      "steps": 1,
+      "totalTimeMinutes": null,
+      "error": null
+    },
+    {
+      "name": "Sausage and Greens Sheet-Pan Dinner",
+      "url": "https://www.epicurious.com/recipes/food/views/sausage-and-greens-sheet-pan-dinner",
+      "status": 200,
+      "importedName": "Sausage Sheet-Pan Dinner",
+      "ingredients": 9,
+      "steps": 4,
+      "totalTimeMinutes": null,
+      "error": null
+    },
+    {
+      "name": "Sheet-Pan Sausages With Caramelized Shallots and Apples",
+      "url": "https://cooking.nytimes.com/recipes/1021698-sheet-pan-sausages-with-caramelized-shallots-and-apples",
+      "status": 200,
+      "importedName": "Sheet-Pan Sausages With Caramelized Shallots and Apples",
+      "ingredients": 9,
+      "steps": 4,
+      "totalTimeMinutes": 50,
+      "error": null
+    },
+    {
+      "name": "Weeknight Bolognese",
+      "url": "https://www.foodnetwork.com/recipes/ina-garten/weeknight-bolognese-recipe-1924746",
+      "status": 200,
+      "importedName": "Weeknight Bolognese",
+      "ingredients": 14,
+      "steps": 3,
+      "totalTimeMinutes": null,
+      "error": null
+    },
+    {
+      "name": "Soba Noodles With Tofu, Shiitake Mushrooms and Broccoli",
+      "url": "https://cooking.nytimes.com/recipes/1012670-soba-noodles-with-tofu-shiitake-mushrooms-and-broccoli",
+      "status": 200,
+      "importedName": "Soba Noodles With Tofu, Shiitake Mushrooms and Broccoli",
+      "ingredients": 13,
+      "steps": 4,
+      "totalTimeMinutes": 20,
+      "error": null
+    },
+    {
+      "name": "Chicken and Zucchini Meatballs",
+      "url": "https://www.bowlofdelicious.com/chicken-zucchini-meatballs/",
+      "status": 200,
+      "importedName": "Chicken and Zucchini Meatballs",
+      "ingredients": 10,
+      "steps": 7,
+      "totalTimeMinutes": 30,
+      "error": null
+    },
+    {
+      "name": "Leek Potato Soup",
+      "url": "https://www.foodnetwork.com/recipes/alton-brown/leek-potato-soup-recipe-1916145",
+      "status": 200,
+      "importedName": "Leek Potato Soup",
+      "ingredients": 9,
+      "steps": 4,
+      "totalTimeMinutes": null,
+      "error": null
+    },
+    {
+      "name": "Rice Bowl With Oven-Baked Miso Tofu",
+      "url": "https://cooking.nytimes.com/recipes/1015283-rice-bowl-with-oven-baked-miso-tofu",
+      "status": 200,
+      "importedName": "Rice Bowl With Oven-Baked Miso Tofu",
+      "ingredients": 14,
+      "steps": 4,
+      "totalTimeMinutes": 45,
+      "error": null
+    },
+    {
+      "name": "Alton Brown's Lentil Soup",
+      "url": "https://altonbrown.com/recipes/healthy-lentil-soup/",
+      "status": 200,
+      "importedName": "Lentil Soup",
+      "ingredients": 11,
+      "steps": 4,
+      "totalTimeMinutes": 75,
+      "error": null
+    },
+    {
+      "name": "Asian Grilled Salmon",
+      "url": "https://www.foodnetwork.com/recipes/ina-garten/asian-grilled-salmon-recipe-1944413",
+      "status": 200,
+      "importedName": "Asian Grilled Salmon",
+      "ingredients": 5,
+      "steps": 4,
+      "totalTimeMinutes": null,
+      "error": null
+    },
+    {
+      "name": "Baked Salmon Deconstructed Sushi Bowl",
+      "url": "https://www.joyousapron.com/baked-salmon-sushi-bowl/",
+      "status": 200,
+      "importedName": "Baked Salmon Deconstructed Sushi Bowl",
+      "ingredients": 16,
+      "steps": 12,
+      "totalTimeMinutes": 90,
+      "error": null
+    },
+    {
+      "name": "Baked Tofu with Green Beans, Shiitakes & Peanut Sauce",
+      "url": "https://www.williams-sonoma.com/recipe/baked-tofu-with-green-beans--shiitakes---peanut-sauce.html",
+      "status": 200,
+      "importedName": "Baked Tofu with Green Beans, Shiitakes &amp; Peanut Sauce",
+      "ingredients": 13,
+      "steps": 7,
+      "totalTimeMinutes": 70,
+      "error": null
+    },
+    {
+      "name": "Slow Cooker Cheesy Chicken and Frito Casserole",
+      "url": "https://tasteandtellblog.com/slow-cooker-cheesy-chicken-frito-casserole/",
+      "status": 200,
+      "importedName": "Slow Cooker Cheesy Chicken and Frito Casserole",
+      "ingredients": 11,
+      "steps": 4,
+      "totalTimeMinutes": 315,
+      "error": null
+    },
+    {
+      "name": "Wild Mushroom, Pea and Pancetta Risotto",
+      "url": "https://www.greatbritishchefs.com/recipes/pea-pancetta-risotto-recipe",
+      "status": 200,
+      "importedName": "Pea and pancetta risotto",
+      "ingredients": 15,
+      "steps": 7,
+      "totalTimeMinutes": 40,
+      "error": null
+    },
+    {
+      "name": "Shakshuka",
+      "url": "https://www.seriouseats.com/shakshuka-north-african-shirred-eggs-tomato-pepper-recipe",
+      "status": 404,
+      "importedName": null,
+      "ingredients": 0,
+      "steps": 0,
+      "totalTimeMinutes": null,
+      "error": "Page returned HTTP 403."
+    },
+    {
+      "name": "Sweet Potato Soup with Miso and Ginger",
+      "url": "https://www.thekitchn.com/recipe-sweet-po-2-19709",
+      "status": 404,
+      "importedName": null,
+      "ingredients": 0,
+      "steps": 0,
+      "totalTimeMinutes": null,
+      "error": "Page returned HTTP 403."
+    },
+    {
+      "name": "Balsamic Butternut Squash with Kale",
+      "url": "https://recipepes.com/balsamic-butternut-squash-with-kale/",
+      "status": 404,
+      "importedName": null,
+      "ingredients": 0,
+      "steps": 0,
+      "totalTimeMinutes": null,
+      "error": "No recipe data found on that page."
+    },
+    {
+      "name": "Cacio e Pepe (Spaghetti with Black Pepper and Pecorino Romano)",
+      "url": "https://www.seriouseats.com/spaghetti-cacio-e-pepe-recipe",
+      "status": 404,
+      "importedName": null,
+      "ingredients": 0,
+      "steps": 0,
+      "totalTimeMinutes": null,
+      "error": "Page returned HTTP 403."
+    },
+    {
+      "name": "Roasted Tomato and White Bean Stew",
+      "url": "https://cooking.nytimes.com/recipes/1020926-roasted-tomato-and-white-bean-stew",
+      "status": 200,
+      "importedName": "Roasted Tomato and White Bean Stew",
+      "ingredients": 13,
+      "steps": 5,
+      "totalTimeMinutes": 30,
+      "error": null
+    },
+    {
+      "name": "One-Pot Tortellini with Prosciutto and Peas",
+      "url": "https://cooking.nytimes.com/recipes/1025271-one-pot-tortellini-with-prosciutto-and-peas",
+      "status": 200,
+      "importedName": "One-Pot Tortellini with Prosciutto and Peas",
+      "ingredients": 10,
+      "steps": 2,
+      "totalTimeMinutes": 25,
+      "error": null
+    },
+    {
+      "name": "Crispy Gnocchi With Sausage and Broccoli",
+      "url": "https://cooking.nytimes.com/recipes/1025733-crispy-gnocchi-with-sausage-and-broccoli",
+      "status": 200,
+      "importedName": "Crispy Gnocchi With Sausage and Broccoli",
+      "ingredients": 9,
+      "steps": 2,
+      "totalTimeMinutes": 45,
+      "error": null
+    },
+    {
+      "name": "Niçoise Salad With Basil and Anchovy-Lemon Vinaigrette",
+      "url": "https://cooking.nytimes.com/recipes/1015078-nicoise-salad-with-basil-and-anchovy-lemon-vinaigrette",
+      "status": 200,
+      "importedName": "Niçoise Salad With Basil and Anchovy-Lemon Vinaigrette",
+      "ingredients": 18,
+      "steps": 3,
+      "totalTimeMinutes": 30,
+      "error": null
+    },
+    {
+      "name": "Bean and Cheese Burritos",
+      "url": "https://cooking.nytimes.com/recipes/1022532-bean-and-cheese-burritos",
+      "status": 200,
+      "importedName": "Bean and Cheese Burritos",
+      "ingredients": 11,
+      "steps": 3,
+      "totalTimeMinutes": 40,
+      "error": null
+    },
+    {
+      "name": "Spinach & Mushroom Bibimbap with Gochujang & Crispy Fried Eggs",
+      "url": "https://marleyspoon.com/menu/17605-spinach-mushroom-bibimbap-with-gochujang-crispy-fried-eggs",
+      "status": 404,
+      "importedName": null,
+      "ingredients": 0,
+      "steps": 0,
+      "totalTimeMinutes": null,
+      "error": "No recipe data found on that page."
+    }
+  ]
+}

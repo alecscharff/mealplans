@@ -11,6 +11,7 @@ import {
   deleteDoc,
   collection,
   getDocs,
+  runTransaction,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -48,21 +49,32 @@ export async function getRecipeCache(db) {
 // recipeCache/main is seeded once at project setup, so this is always an update to an
 // existing doc, never a create — see firestore.rules for why that distinction matters.
 export async function addRecipe(db, recipe) {
-  const cache = await getRecipeCache(db);
-  await setDoc(doc(db, "recipeCache", "main"), { recipes: [...cache.recipes, recipe] }, { merge: true });
+  const ref = doc(db, "recipeCache", "main");
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const recipes = snap.exists() ? (snap.data().recipes || []) : [];
+    tx.set(ref, { recipes: [...recipes, recipe] }, { merge: true });
+  });
 }
 
 // Replaces one recipe's fields in place, keeping its uid/lastCooked/addedAt.
 export async function updateRecipe(db, uid, updates) {
-  const cache = await getRecipeCache(db);
-  const recipes = cache.recipes.map((r) => (r.uid === uid ? { ...r, ...updates } : r));
-  await setDoc(doc(db, "recipeCache", "main"), { recipes }, { merge: true });
+  const ref = doc(db, "recipeCache", "main");
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Recipe library is missing.");
+    const recipes = (snap.data().recipes || []).map((r) => (r.uid === uid ? { ...r, ...updates } : r));
+    tx.set(ref, { recipes }, { merge: true });
+  });
 }
 
 export async function deleteRecipe(db, uid) {
-  const cache = await getRecipeCache(db);
-  const recipes = cache.recipes.filter((r) => r.uid !== uid);
-  await setDoc(doc(db, "recipeCache", "main"), { recipes }, { merge: true });
+  const ref = doc(db, "recipeCache", "main");
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const recipes = (snap.data()?.recipes || []).filter((r) => r.uid !== uid);
+    tx.set(ref, { recipes }, { merge: true });
+  });
 }
 
 // Applies { [uid]: weekKey } lastCooked updates to the cached recipes array.
@@ -84,8 +96,35 @@ export async function getWeekState(db, weekKey) {
 // Stamps every write with when it happened, so callers that hold picks/candidates in
 // memory across an async gap (the Menu tab's Save/Shuffle) can detect that another tab
 // or device saved over this week in the meantime — see menu.js's staleness guard.
-export async function saveWeekState(db, weekKey, data) {
-  await setDoc(doc(db, "weekState", weekKey), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
+export async function saveWeekState(db, weekKey, data, expectedUpdatedAt = undefined) {
+  const ref = doc(db, "weekState", weekKey);
+  const updatedAt = new Date().toISOString();
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const latest = snap.exists() ? snap.data() : {};
+    if (expectedUpdatedAt !== undefined && (latest.updatedAt || null) !== expectedUpdatedAt) {
+      throw new Error("This week changed elsewhere. Reload the page to review the latest picks before saving.");
+    }
+    tx.set(ref, { ...data, updatedAt }, { merge: true });
+  });
+  return updatedAt;
+}
+
+export async function updateWeekCheck(db, weekKey, type, key, value, recipeUid = null) {
+  const ref = doc(db, "weekState", weekKey);
+  const updatedAt = new Date().toISOString();
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const state = snap.exists() ? snap.data() : {};
+    if (type === "grocery") {
+      tx.set(ref, { groceryChecks: { ...(state.groceryChecks || {}), [key]: value }, updatedAt }, { merge: true });
+      return;
+    }
+    const stepChecks = { ...(state.stepChecks || {}) };
+    stepChecks[recipeUid] = { ...(stepChecks[recipeUid] || {}), [key]: value };
+    tx.set(ref, { stepChecks, updatedAt }, { merge: true });
+  });
+  return updatedAt;
 }
 
 export async function getAllWeekStates(db) {

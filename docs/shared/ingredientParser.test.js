@@ -11,6 +11,11 @@ test("parses a simple whole-number quantity with unit", () => {
   });
 });
 
+test("preserves uncertain ranges and package weight parentheticals", () => {
+  assert.equal(parseIngredientLine("1/2–1 teaspoon Kosher Salt").quantity, null);
+  assert.equal(parseIngredientLine("1 side Salmon (about 3 pounds)").quantity, null);
+});
+
 test("parses HelloFresh's 'unit' placeholder as a recognized unit, not part of the name", () => {
   assert.deepEqual(parseIngredientLine("2 unit Onion"), {
     quantity: 2,
@@ -70,11 +75,10 @@ test("parses a mixed unicode fraction (whole number + fraction glyph)", () => {
   assert.equal(result.name, "sugar");
 });
 
-test("parses a range quantity as the average", () => {
+test("preserves range quantities without inventing an average", () => {
   const result = parseIngredientLine("3-4 cloves garlic, minced");
-  assert.equal(result.quantity, 3.5);
-  assert.equal(result.unit, "clove");
-  assert.equal(result.name, "garlic, minced");
+  assert.equal(result.quantity, null);
+  assert.equal(result.raw, "3-4 cloves garlic, minced");
 });
 
 test("falls back to raw text with null quantity/unit for unparseable lines", () => {

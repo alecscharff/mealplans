@@ -1,13 +1,21 @@
-import { saveWeekState } from "../firestore.js";
+import { updateWeekCheck } from "../firestore.js";
 import { createRecipeThumb } from "./recipeImage.js";
 import { createSpiceBlendNote } from "./spiceBlendNote.js";
 import { appendBoldMarkedText } from "./boldText.js";
 import { formatQuantityParts } from "../shared/quantityFormat.js";
 import { splitStepIntoLines } from "../shared/stepLines.js";
 
+function isMealIdea(recipe) {
+  return recipe.mealIdea === true || /^(dinner salad|taco bowls?)$/i.test(recipe.name?.trim() || "");
+}
+
 export function renderRecipeDetail(container, ctx, refresh) {
-  const { recipesByUid, weekState, currentWeekKey, settings, db, navigate, params } = ctx;
-  const recipe = recipesByUid[params.uid];
+  const { recipesByUid, upcomingWeeks, weekState, currentWeekKey, settings, db, navigate, params } = ctx;
+  const chosenWeekKey = params.weekKey || currentWeekKey;
+  const chosenWeek = upcomingWeeks?.find((w) => w.weekKey === chosenWeekKey)?.weekState || weekState;
+  const recipe = recipesByUid[params.uid] || params.recipeSnapshot;
+  const mealIdea = recipe ? isMealIdea(recipe) : false;
+  const readOnlyArchive = params.from === "history" || (!!params.recipeSnapshot && !recipesByUid[params.uid]);
 
   if (!recipe) {
     const notice = document.createElement("div");
@@ -23,16 +31,16 @@ export function renderRecipeDetail(container, ctx, refresh) {
   const backButton = document.createElement("button");
   backButton.className = "pick-button";
   backButton.textContent = "← Back";
-  backButton.addEventListener("click", () => navigate(params.from || "menu"));
+  backButton.addEventListener("click", () => navigate(params.from || "menu", params.backParams || {}));
   toolbar.appendChild(backButton);
 
-  const editButton = document.createElement("button");
-  editButton.className = "pick-button";
-  editButton.textContent = "Edit";
-  editButton.addEventListener("click", () =>
-    navigate("editRecipe", { uid: recipe.uid, from: "detail", detailFrom: params.from })
-  );
-  toolbar.appendChild(editButton);
+  if (!readOnlyArchive) {
+    const editButton = document.createElement("button");
+    editButton.className = "pick-button";
+    editButton.textContent = "Edit";
+    editButton.addEventListener("click", () => navigate("editRecipe", { uid: recipe.uid, from: "detail", detailFrom: params.from, detailParams: params.backParams, weekKey: chosenWeekKey }));
+    toolbar.appendChild(editButton);
+  }
 
   container.appendChild(toolbar);
 
@@ -41,6 +49,7 @@ export function renderRecipeDetail(container, ctx, refresh) {
   const name = document.createElement("h2");
   name.textContent = recipe.name;
   container.appendChild(name);
+  if (mealIdea) { const badge = document.createElement("p"); badge.className = "note-inline"; badge.textContent = "Meal idea · suggestions, not a step-by-step recipe"; container.appendChild(badge); }
 
   if (recipe.sourceUrl) {
     const link = document.createElement("a");
@@ -75,13 +84,13 @@ export function renderRecipeDetail(container, ctx, refresh) {
   servingsInput.min = "1";
   servingsInput.value = initialServings;
   servingsLabel.appendChild(servingsInput);
-  container.appendChild(servingsLabel);
+  if (!mealIdea) container.appendChild(servingsLabel);
 
   const ingredientsHeading = document.createElement("h3");
   ingredientsHeading.textContent = "Ingredients";
-  container.appendChild(ingredientsHeading);
+  if (!mealIdea) container.appendChild(ingredientsHeading);
   const ingredientsList = document.createElement("ul");
-  container.appendChild(ingredientsList);
+  if (!mealIdea) container.appendChild(ingredientsList);
 
   function renderIngredients() {
     ingredientsList.innerHTML = "";
@@ -103,18 +112,27 @@ export function renderRecipeDetail(container, ctx, refresh) {
     }
   }
   servingsInput.addEventListener("input", renderIngredients);
-  renderIngredients();
+  if (!mealIdea) renderIngredients();
 
   const stepsHeading = document.createElement("h3");
-  stepsHeading.textContent = "Steps";
+  stepsHeading.textContent = mealIdea ? "Mix-ins and variations" : "Steps";
   container.appendChild(stepsHeading);
+  if (!mealIdea) {
+    const scalingNote = document.createElement("p");
+    scalingNote.className = "note-inline";
+    scalingNote.textContent = `Ingredients are scaled from the original yield of ${recipeServings}; instruction quantities remain as published.`;
+    container.appendChild(scalingNote);
+  }
 
   // Each instruction step often bundles a few discrete actions into one run-on
   // sentence — split those into individual lines so they can be crossed off one at a
   // time while cooking, instead of the whole step disappearing at once.
   const lines = recipe.directions.flatMap((step) => splitStepIntoLines(step));
 
-  const stepChecks = { ...(weekState.stepChecks?.[recipe.uid] || {}) };
+  const stepChecks = { ...(readOnlyArchive ? {} : (chosenWeek?.stepChecks?.[recipe.uid] || {})) };
+  const status = document.createElement("p");
+  status.setAttribute("role", "status");
+  container.appendChild(status);
   const stepsList = document.createElement("ol");
   stepsList.className = "step-list";
   lines.forEach((line, i) => {
@@ -129,14 +147,33 @@ export function renderRecipeDetail(container, ctx, refresh) {
     const textEl = document.createElement("span");
     textEl.className = "step-text";
     appendBoldMarkedText(textEl, line);
-    li.appendChild(textEl);
-    li.addEventListener("click", async () => {
-      stepChecks[i] = !stepChecks[i];
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = !!stepChecks[i];
+    checkbox.setAttribute("aria-label", `Mark step ${i + 1} complete`);
+    checkbox.disabled = readOnlyArchive || mealIdea;
+    checkbox.addEventListener("change", async () => {
+      const previous = stepChecks[i];
+      stepChecks[i] = checkbox.checked;
       li.classList.toggle("checked", stepChecks[i]);
-      await saveWeekState(db, currentWeekKey, {
-        stepChecks: { ...weekState.stepChecks, [recipe.uid]: stepChecks },
-      });
+      checkbox.disabled = true;
+      try {
+        const updatedAt = await updateWeekCheck(db, chosenWeekKey, "step", String(i), checkbox.checked, recipe.uid);
+        if (chosenWeek) {
+          chosenWeek.stepChecks = { ...(chosenWeek.stepChecks || {}), [recipe.uid]: { ...(chosenWeek.stepChecks?.[recipe.uid] || {}), [String(i)]: checkbox.checked } };
+          chosenWeek.updatedAt = updatedAt;
+        }
+        status.textContent = "Step progress saved.";
+      } catch (err) {
+        stepChecks[i] = previous;
+        checkbox.checked = !!previous;
+        li.classList.toggle("checked", !!previous);
+        status.textContent = `Couldn't save step progress: ${err.message}. Try again.`;
+      } finally { checkbox.disabled = false; }
     });
+    if (!mealIdea) li.prepend(checkbox);
+    li.appendChild(textEl);
+    if (mealIdea) { li.classList.remove("step-item"); li.style.cursor = "default"; }
     stepsList.appendChild(li);
   });
   container.appendChild(stepsList);

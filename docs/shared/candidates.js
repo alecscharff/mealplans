@@ -20,3 +20,11 @@ export function generateCandidates(
   const shuffled = seededShuffle(pool, `${weekKey}:${shuffleSeed}`);
   return shuffled.slice(0, takeCount).map((r) => r.uid);
 }
+
+// Keep the candidate pool unique when a user chooses a recipe already shown as
+// another alternative; otherwise swap the replaced pick into its candidate slot.
+export function replaceCandidate(candidates, previousUid, nextUid) {
+  if (candidates.includes(nextUid)) return candidates.slice();
+  if (candidates.includes(previousUid)) return candidates.map((uid) => uid === previousUid ? nextUid : uid);
+  return [...candidates, nextUid];
+}

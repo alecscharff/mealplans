@@ -30,7 +30,12 @@ test("formatQuantityParts splits the same output into a prefix + bare name", () 
 });
 
 test("formatQuantityLine and formatQuantityParts agree", () => {
-  assert.equal(formatQuantityLine("flour", 1.5, "cup"), "1.5 cup flour");
+  assert.equal(formatQuantityLine("flour", 1.5, "cup"), "1½ cup flour");
   const { prefix, name } = formatQuantityParts("flour", 1.5, "cup");
-  assert.equal(`${prefix}${name}`, "1.5 cup flour");
+  assert.equal(`${prefix}${name}`, "1½ cup flour");
+});
+
+test("formats common scaled decimals as readable fractions", () => {
+  assert.equal(formatQuantityLine("oil", 0.67, "tbsp"), "⅔ tbsp oil");
+  assert.equal(formatQuantityLine("pepper", 0.5, "tsp"), "½ tsp pepper");
 });

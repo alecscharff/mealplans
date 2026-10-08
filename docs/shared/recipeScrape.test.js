@@ -103,6 +103,12 @@ test("parseDurationMinutes handles hours-only durations", () => {
   assert.equal(parseDurationMinutes("PT2H"), 120);
 });
 
+test("parseDurationMinutes handles extended ISO durations from Food Network", () => {
+  assert.equal(parseDurationMinutes("P0Y0M0DT0H45M0.000S"), 45);
+  assert.equal(parseDurationMinutes("PT90S"), 2);
+  assert.equal(parseDurationMinutes("P1DT1H"), 1500);
+});
+
 test("parseDurationMinutes returns null for invalid or missing input", () => {
   assert.equal(parseDurationMinutes(null), null);
   assert.equal(parseDurationMinutes(""), null);
@@ -251,6 +257,17 @@ test("scrapeRecipeFromHtml returns a full structured recipe", () => {
   assert.equal(recipe.ingredientsParsed.length, 3);
   assert.equal(recipe.ingredientsParsed[0].quantity, 2);
   assert.deepEqual(recipe.directions, ["Brown the beef.", "Add remaining ingredients and simmer."]);
+});
+
+test("scrapeRecipeFromHtml prefers a safe publisher canonical URL", () => {
+  const html = `<link href="/recipe/canonical?utm_source=x" rel="canonical"><script type="application/ld+json">${JSON.stringify({ "@type": "Recipe", name: "Canonical", recipeIngredient: [], recipeInstructions: [] })}</script>`;
+  assert.equal(scrapeRecipeFromHtml(html, "https://www.example.com/import?ref=mail").sourceUrl, "https://example.com/recipe/canonical");
+});
+
+test("scrapeRecipeFromHtml falls back when canonical URL leaves publisher or uses unsafe scheme", () => {
+  const recipe = { "@type": "Recipe", name: "Safe", recipeIngredient: [], recipeInstructions: [] };
+  const html = `<link rel="canonical" href="javascript:alert(1)"><link rel="canonical" href="https://other.example/path"><script type="application/ld+json">${JSON.stringify(recipe)}</script>`;
+  assert.equal(scrapeRecipeFromHtml(html, "https://example.com/Recipe/?utm_campaign=x").sourceUrl, "https://example.com/Recipe");
 });
 
 test("scrapeRecipeFromHtml returns null when no Recipe JSON-LD is present", () => {

@@ -25,9 +25,9 @@ test("filterRecipes narrows by derived protein tag", () => {
   assert.deepEqual(result.map((r) => r.uid).sort(), ["2", "5"]);
 });
 
-test("filterRecipes caps by cook time, keeping recipes with unknown time", () => {
+test("filterRecipes caps by cook time and excludes unknown time", () => {
   const result = filterRecipes(recipes, { maxMinutes: 30 });
-  assert.deepEqual(result.map((r) => r.uid).sort(), ["2", "3", "5"]);
+  assert.deepEqual(result.map((r) => r.uid).sort(), ["2", "3"]);
 });
 
 test("filterRecipes composes query + protein + maxMinutes", () => {

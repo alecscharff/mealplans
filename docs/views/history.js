@@ -6,7 +6,7 @@ import { createRecipeThumb } from "./recipeImage.js";
 // recipes, since the Menu/Grocery tabs only ever show the current week plus a few
 // ahead and a week disappears from both the moment it rolls over.
 export function renderHistory(container, ctx) {
-  const { history, recipesByUid, navigate } = ctx;
+  const { history, recipesByUid, archivedRecipesByUid, navigate } = ctx;
 
   if (!history || history.length === 0) {
     const notice = document.createElement("div");
@@ -24,7 +24,8 @@ export function renderHistory(container, ctx) {
     heading.textContent = formatWeekLabel(entry.weekKey);
     section.appendChild(heading);
 
-    const recipes = entry.recipeUids.map((uid) => recipesByUid[uid]).filter(Boolean);
+    const archived = entry.recipes || [];
+    const recipes = entry.recipeUids.map((uid) => recipesByUid[uid] || archived.find((r) => r.uid === uid) || archivedRecipesByUid?.[uid]).filter(Boolean);
 
     if (recipes.length === 0) {
       const note = document.createElement("p");
@@ -43,7 +44,7 @@ export function renderHistory(container, ctx) {
         link.type = "button";
         link.className = "recipe-name-link";
         link.textContent = recipe.name;
-        link.addEventListener("click", () => navigate("detail", { uid: recipe.uid, from: "history" }));
+        link.addEventListener("click", () => navigate("detail", { uid: recipe.uid, from: "history", recipeSnapshot: recipesByUid[recipe.uid] ? null : recipe }));
         chip.appendChild(link);
 
         list.appendChild(chip);

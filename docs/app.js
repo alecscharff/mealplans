@@ -38,6 +38,9 @@ const views = {
 let currentTab = "menu";
 let navParams = {};
 let ctx = null;
+let canLeaveCurrentView = () => true;
+let hasUnsavedChanges = () => false;
+let archivedRecipesPromise;
 
 // The menu view shows this week plus this many weeks ahead, each with its own 2 picks +
 // 2 alternatives (candidates take count below), so a family can plan several weeks out.
@@ -94,7 +97,10 @@ async function loadState(db) {
   const allWeekStates = await getAllWeekStates(db);
   const rollover = computeRollover(allWeekStates, currentWeekKey);
   for (const entry of rollover.historyAppends) {
-    await appendHistory(db, entry);
+    await appendHistory(db, {
+      ...entry,
+      recipes: entry.recipeUids.map((uid) => recipeCache.recipes.find((r) => r.uid === uid)).filter(Boolean).map(({ uid, name, sourceUrl, image, servings, totalTimeMinutes, ingredientsRaw, ingredientsParsed, directions }) => ({ uid, name, sourceUrl, image, servings, totalTimeMinutes, ingredientsRaw, ingredientsParsed, directions })),
+    });
   }
   if (Object.keys(rollover.lastCookedUpdates).length > 0) {
     await updateRecipeLastCooked(db, rollover.lastCookedUpdates);
@@ -108,6 +114,9 @@ async function loadState(db) {
   }
 
   const recipesByUid = Object.fromEntries(recipeCache.recipes.map((r) => [r.uid, r]));
+  archivedRecipesPromise ??= fetch(new URL("./data/archived-recipes.json", import.meta.url)).then((response) => response.ok ? response.json() : []).catch(() => []);
+  const archivedRecipes = await archivedRecipesPromise;
+  const archivedRecipesByUid = Object.fromEntries(archivedRecipes.map((r) => [r.uid, r]));
 
   // Load (or create) this week's state, plus the next few weeks ahead for the 4-week
   // menu view. Skipped recipes are excluded from automatic candidate generation (but
@@ -133,7 +142,7 @@ async function loadState(db) {
 
   const history = await getHistory(db);
 
-  return { db, settings, recipeCache, currentWeekKey, weekState, recipesByUid, upcomingWeeks, history };
+  return { db, settings, recipeCache, currentWeekKey, weekState, recipesByUid, archivedRecipesByUid, upcomingWeeks, history };
 }
 
 async function refresh() {
@@ -142,26 +151,47 @@ async function refresh() {
 }
 
 function navigate(view, params = {}) {
+  if (!canLeaveCurrentView()) return;
   currentTab = view;
+  syncActiveTab();
   navParams = params;
+  canLeaveCurrentView = () => true;
   renderCurrentTab();
 }
 
 function renderCurrentTab() {
   appEl.innerHTML = "";
-  views[currentTab](appEl, { ...ctx, navigate, params: navParams }, refresh);
+  canLeaveCurrentView = () => true;
+  hasUnsavedChanges = () => false;
+  views[currentTab](appEl, { ...ctx, navigate, params: navParams, setLeaveGuard: (guard, dirtyCheck = () => false) => { canLeaveCurrentView = guard; hasUnsavedChanges = dirtyCheck; } }, refresh);
 }
+
+function syncActiveTab() {
+  document.querySelectorAll(".tab-button").forEach((button) => {
+    const active = button.dataset.view === currentTab;
+    button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
+  });
+}
+
+window.addEventListener("beforeunload", (event) => {
+  if (!hasUnsavedChanges()) return;
+  event.preventDefault();
+  event.returnValue = "";
+});
 
 function setupTabs() {
   document.querySelectorAll(".tab-button").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (!canLeaveCurrentView()) return;
       currentTab = btn.dataset.view;
       navParams = {};
-      document.querySelectorAll(".tab-button").forEach((b) => b.classList.toggle("active", b === btn));
+      canLeaveCurrentView = () => true;
+      syncActiveTab();
       renderCurrentTab();
     });
   });
-  document.querySelector(`.tab-button[data-view="${currentTab}"]`)?.classList.add("active");
+  syncActiveTab();
 }
 
 async function main() {

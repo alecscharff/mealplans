@@ -1,5 +1,5 @@
 import { saveWeekState, getWeekState } from "../firestore.js";
-import { generateCandidates } from "../shared/candidates.js";
+import { generateCandidates, replaceCandidate } from "../shared/candidates.js";
 import { deriveTags, PROTEIN_TAG_OPTIONS } from "../shared/recipeTags.js";
 import {
   isActiveForSuggestions,
@@ -28,7 +28,9 @@ function lastCookedLabel(recipe, currentWeekKey) {
 }
 
 export function renderMenu(container, ctx, refresh) {
-  const { upcomingWeeks, recipesByUid, recipeCache, currentWeekKey, settings, db, navigate } = ctx;
+  const { upcomingWeeks, recipesByUid, recipeCache, currentWeekKey, settings, db, navigate, setLeaveGuard } = ctx;
+  const dirtyChecks = [];
+  const dirtyStateChecks = [];
 
   for (const { weekKey, weekState } of upcomingWeeks) {
     container.appendChild(
@@ -42,10 +44,12 @@ export function renderMenu(container, ctx, refresh) {
         settings,
         db,
         navigate,
+        registerDirtyCheck: (fn, isDirty) => { dirtyChecks.push(fn); dirtyStateChecks.push(isDirty); },
         refresh,
       })
     );
   }
+  setLeaveGuard?.(() => dirtyChecks.every((fn) => fn()), () => dirtyStateChecks.some((fn) => fn()));
 }
 
 function renderWeekSection({
@@ -58,6 +62,7 @@ function renderWeekSection({
   settings,
   db,
   navigate,
+  registerDirtyCheck,
   refresh,
 }) {
   const section = document.createElement("section");
@@ -97,9 +102,13 @@ function renderWeekSection({
 
   const saveButton = document.createElement("button");
   saveButton.type = "button";
-  saveButton.textContent = "Save picks";
+  saveButton.textContent = "Save suggested picks";
   saveButton.className = "pick-button";
   section.appendChild(saveButton);
+  const saveStatus = document.createElement("p");
+  saveStatus.className = "note-inline";
+  saveStatus.setAttribute("role", "status");
+  section.appendChild(saveStatus);
 
   // Two picks are always shown as selected — either confirmed picks, or (before a save)
   // the top two candidates as a default suggestion — plus alternatives to swap in.
@@ -107,22 +116,39 @@ function renderWeekSection({
   // alternative slot for a manually-chosen recipe without touching Firestore until Save.
   let candidates = weekState.candidates.slice();
   let selected = weekState.picks.length > 0 ? weekState.picks.slice() : candidates.slice(0, 2);
+  let hasUserChanges = false;
+  registerDirtyCheck?.(() => !hasUserChanges || confirm(`The picks for ${formatWeekLabel(weekKey)} have unsaved changes. Leave without saving?`), () => hasUserChanges);
+  let originallySaved = weekState.picks.length > 0;
+  let savedPicks = weekState.picks.slice();
+  let savedCandidates = weekState.candidates.slice();
+  function updateSaveState() {
+    const changed = hasUserChanges || (originallySaved && (selected.join("|") !== savedPicks.join("|") || candidates.join("|") !== savedCandidates.join("|")));
+    saveButton.disabled = !changed && originallySaved;
+    saveButton.textContent = changed ? "Save picks" : originallySaved ? "Saved" : "Save suggested picks";
+    saveStatus.textContent = changed ? "Unsaved changes" : originallySaved ? "Saved for this week" : "Suggested picks · not saved yet";
+  }
+  function replaceSelected(index, uid) {
+    const previous = selected[index];
+    selected[index] = uid;
+    candidates = replaceCandidate(candidates, previous, uid);
+  }
   let pickerFilters = { query: "", protein: "", maxMinutes: null };
 
   // Snapshot of when this week's data was as of this page load. There's no live sync
   // (no realtime listener) — if another tab or device saves this same week before this
   // one does, this tab's in-memory picks are stale and would silently clobber that
   // other save with old data. Checked immediately before Save/Shuffle actually write.
-  const loadedUpdatedAt = weekState.updatedAt || null;
+  let loadedUpdatedAt = weekState.updatedAt || null;
 
   async function warnIfStale() {
     const latest = await getWeekState(db, weekKey);
     const latestUpdatedAt = latest?.updatedAt || null;
-    if (latestUpdatedAt === loadedUpdatedAt) return true;
-    return confirm(
+    if (latestUpdatedAt === loadedUpdatedAt) return { ok: true, updatedAt: latestUpdatedAt };
+    if (!confirm(
       "This week's picks were changed elsewhere (another tab or device) since this page loaded. " +
         "Save anyway and overwrite that change? Choose Cancel, then reload this page, to see the latest picks first."
-    );
+    )) return { ok: false };
+    return { ok: true, updatedAt: latestUpdatedAt };
   }
 
   // Recipes already showing up in any other displayed week — excluded from both the
@@ -164,7 +190,7 @@ function renderWeekSection({
       name.type = "button";
       name.className = "recipe-name-link";
       name.textContent = recipe.name;
-      name.addEventListener("click", () => navigate("detail", { uid, from: "menu" }));
+      name.addEventListener("click", () => navigate("detail", { uid, from: "menu", weekKey }));
       info.appendChild(name);
 
       const meta = document.createElement("div");
@@ -199,12 +225,18 @@ function renderWeekSection({
       const button = document.createElement("button");
       button.type = "button";
       button.className = "pick-button" + (selected.includes(uid) ? " selected" : "");
-      button.textContent = selected.includes(uid) ? "Picked" : "Pick";
-      button.disabled = !selected.includes(uid) && selected.length >= 2;
+      button.textContent = selected.includes(uid) ? (!originallySaved && !hasUserChanges ? "Suggested" : "Picked") : selected.length >= 2 ? "Replace…" : "Pick";
+      button.setAttribute("aria-pressed", String(selected.includes(uid)));
       button.addEventListener("click", () => {
-        togglePick(uid);
+        if (!selected.includes(uid) && selected.length >= 2) {
+          const choice = prompt(`Replace which meal?\n1. ${recipesByUid[selected[0]]?.name || "First meal"}\n2. ${recipesByUid[selected[1]]?.name || "Second meal"}`, "1");
+          if (choice !== "1" && choice !== "2") return;
+          replaceSelected(Number(choice) - 1, uid);
+        } else togglePick(uid);
+        hasUserChanges = true;
         renderList();
         if (!picker.hidden) renderPicker();
+        updateSaveState();
       });
       card.appendChild(button);
 
@@ -224,6 +256,7 @@ function renderWeekSection({
     searchInput.placeholder = "Search recipes…";
     searchInput.value = pickerFilters.query;
     searchInput.className = "picker-search";
+    searchInput.setAttribute("aria-label", "Search recipes");
     searchInput.addEventListener("input", () => {
       pickerFilters = { ...pickerFilters, query: searchInput.value };
       renderPickerList();
@@ -231,6 +264,7 @@ function renderWeekSection({
     filterRow.appendChild(searchInput);
 
     const proteinSelect = document.createElement("select");
+    proteinSelect.setAttribute("aria-label", "Filter by protein");
     const allOption = document.createElement("option");
     allOption.value = "";
     allOption.textContent = "Any protein";
@@ -249,6 +283,7 @@ function renderWeekSection({
     filterRow.appendChild(proteinSelect);
 
     const timeSelect = document.createElement("select");
+    timeSelect.setAttribute("aria-label", "Filter by cook time");
     const anyTimeOption = document.createElement("option");
     anyTimeOption.value = "";
     anyTimeOption.textContent = "Any time";
@@ -256,7 +291,7 @@ function renderWeekSection({
     for (const minutes of TIME_FILTER_OPTIONS) {
       const option = document.createElement("option");
       option.value = minutes;
-      option.textContent = `${minutes} min or less`;
+      option.textContent = `${minutes} min or less (known time)`;
       timeSelect.appendChild(option);
     }
     timeSelect.value = pickerFilters.maxMinutes || "";
@@ -309,12 +344,17 @@ function renderWeekSection({
         const useButton = document.createElement("button");
         useButton.type = "button";
         useButton.className = "pick-button" + (isSelected ? " selected" : "");
-        useButton.textContent = isSelected ? "Picked" : "Use this recipe";
-        useButton.disabled = !isSelected && selected.length >= 2;
+        useButton.textContent = isSelected ? "Picked" : selected.length >= 2 ? "Replace…" : "Use this recipe";
         useButton.addEventListener("click", () => {
-          togglePick(recipe.uid);
+          if (!selected.includes(recipe.uid) && selected.length >= 2) {
+            const choice = prompt(`Replace which meal?\n1. ${recipesByUid[selected[0]]?.name || "First meal"}\n2. ${recipesByUid[selected[1]]?.name || "Second meal"}`, "1");
+            if (choice !== "1" && choice !== "2") return;
+            replaceSelected(Number(choice) - 1, recipe.uid);
+          } else togglePick(recipe.uid);
+          hasUserChanges = true;
           renderList();
           renderPickerList();
+          updateSaveState();
         });
         row.appendChild(useButton);
 
@@ -334,19 +374,33 @@ function renderWeekSection({
   saveButton.addEventListener("click", async () => {
     saveButton.disabled = true;
     saveButton.textContent = "Saving…";
-    if (!(await warnIfStale())) {
+    try {
+    const staleCheck = await warnIfStale();
+    if (!staleCheck.ok) {
       saveButton.disabled = false;
       saveButton.textContent = "Save picks";
       return;
     }
-    await saveWeekState(db, weekKey, { candidates, picks: selected });
-    await refresh();
+    const updatedAt = await saveWeekState(db, weekKey, { candidates, picks: selected }, staleCheck.updatedAt);
+    hasUserChanges = false;
+    Object.assign(weekState, { candidates: candidates.slice(), picks: selected.slice(), updatedAt });
+    loadedUpdatedAt = updatedAt; originallySaved = true; savedPicks = selected.slice(); savedCandidates = candidates.slice();
+    renderList(); updateSaveState();
+    shuffleButton.disabled = false;
+    shuffleButton.textContent = "Shuffle";
+    } catch (err) {
+      saveStatus.textContent = `Couldn't save picks: ${err.message}. Your changes are still here; try again.`;
+      saveButton.disabled = false;
+      saveButton.textContent = "Retry save";
+    }
   });
 
   shuffleButton.addEventListener("click", async () => {
     shuffleButton.disabled = true;
     shuffleButton.textContent = "Shuffling…";
-    if (!(await warnIfStale())) {
+    try {
+    const staleCheck = await warnIfStale();
+    if (!staleCheck.ok) {
       shuffleButton.disabled = false;
       shuffleButton.textContent = "Shuffle";
       return;
@@ -358,14 +412,23 @@ function renderWeekSection({
     const excluded = new Set([...usedByOtherWeeks(), ...kept]);
     const availableRecipes = recipeCache.recipes.filter((r) => isActiveForSuggestions(r) && !excluded.has(r.uid));
     const nextNonce = (weekState.shuffleNonce || 0) + 1;
+    hasUserChanges = true;
     const replacements = generateCandidates(availableRecipes, weekKey, candidateSeed(settings, nextNonce), {
       takeCount: Math.max(CANDIDATES_PER_WEEK - kept.length, 0),
     });
     candidates = [...kept, ...replacements];
-    await saveWeekState(db, weekKey, { candidates, shuffleNonce: nextNonce, picks: kept });
-    await refresh();
+    const updatedAt = await saveWeekState(db, weekKey, { candidates, shuffleNonce: nextNonce, picks: kept }, staleCheck.updatedAt);
+    Object.assign(weekState, { candidates: candidates.slice(), shuffleNonce: nextNonce, picks: kept.slice(), updatedAt });
+    loadedUpdatedAt = updatedAt; originallySaved = true; savedPicks = kept.slice(); savedCandidates = candidates.slice(); hasUserChanges = false;
+    renderList(); updateSaveState();
+    } catch (err) {
+      shuffleButton.disabled = false;
+      shuffleButton.textContent = "Shuffle";
+      saveStatus.textContent = `Couldn't save shuffled picks: ${err.message}. Try again.`;
+    }
   });
 
   renderList();
+  updateSaveState();
   return section;
 }
