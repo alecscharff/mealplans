@@ -1,5 +1,7 @@
 # Sunday Menu functionality and UX audit
 
+**Latest status:** the previously unverified failure and concurrency checks are completed. See the final emulator verification section below.
+
 Audited October 8, 2026 against https://alotta.fun/mealplans/.
 
 The normal save flows work and survive a reload. Several functional defects and usability problems prevent a clean overall pass. The most important are invalid family-size saves, cooking progress attached to the wrong week, and stale checklist displays.
@@ -125,3 +127,47 @@ Scraping now chooses a same-publisher HTTP(S) canonical link when present, with 
 ### Final browser verification
 
 A local mock preview (no production writes) passed: phone navigation at 390 × 844 with all five tabs visible; blank family-size rejection; valid family-size save and reload; future-week menu save; cooking-step check retained after Back/reopen; grocery check retained across recipe filters; future-week grocery → detail → Back retained its selected week; edited import name, multiline ingredients and instructions saved and survived reload. Screenshot: `audit/mobile-settings-fixed-2026-10-08.jpg`. Final shared tests: **126 passed, 0 failed**. Production deployment and emulator-backed failure/concurrency injection were not performed.
+
+
+## Final emulator verification — October 8, 2026
+
+The missing Java runtime was installed through Homebrew (`openjdk@21`), and the
+remaining checks ran against an isolated `demo-mealplans` Firebase Auth/Firestore
+emulator using the production rules and the same Firebase 10.14.1 SDK as the app.
+No production recipes, menus, settings, or checklists were used for fault injection.
+
+**Automated results: 126 shared tests and 12 emulator integration tests passed.**
+The emulator suite covers simultaneous recipe additions, edit versus rollover,
+delete versus add, competing menu saves, concurrent grocery/cooking checks,
+idempotent rollover history, every unauthenticated write path, a physically cut
+TCP connection followed by successful retry, concurrent canonical-URL imports,
+editing a deleted recipe, identical-clock versioning, and settings validation.
+The disconnected test cuts actual connections rather than relying on the SDK's
+`disableNetwork()`, which does not exercise transaction failures in this SDK.
+
+**Browser results with actual emulator rules:** permission-denied saves preserve
+the settings, menu, recipe-edit, manual-entry and imported-preview drafts and
+re-enable retry; restoring access saves the retained draft. Grocery and cooking
+checkboxes revert after rejected writes and succeed after restoring access.
+Shuffle and skip/include remain usable after failure and retry. A second client
+changed a week; clicking Cancel in the stale-save warning retained the first
+client's unsaved draft and enabled Save. Saving one week retained another week's
+draft. Fresh-week initialization followed by its first save worked without a
+false conflict. A screenshot of a retained import draft after permission failure
+is saved at `audit/save-failure-recovery-2026-10-08.jpg`.
+
+These checks found and fixed residual problems:
+
+- Rollover's last-cooked update now uses a transaction and cannot move dates backward.
+- History append is idempotent under the actual append-only rules.
+- History snapshots preserve actual recipe fields without introducing undefined values.
+- Settings validate at the storage boundary and use a transaction, so a disconnected
+  save rejects instead of remaining queued indefinitely.
+- Week stamps strictly increase even for writes within one millisecond.
+- Concurrent imports cannot add the same canonical source twice; editing a recipe
+  deleted elsewhere fails explicitly and preserves the draft.
+- Week initialization/regeneration respects concurrent saves and retains its new
+  version stamp.
+
+Repeatable commands and the isolated browser harness are documented in README.
+The prior “unverified” failure/concurrency limitation is resolved.

@@ -14,6 +14,7 @@ import {
   runTransaction,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
+import { canonicalRecipeUrl } from "./shared/canonicalUrl.js";
 
 let dbInstance = null;
 
@@ -34,7 +35,14 @@ export async function getSettings(db) {
 }
 
 export async function saveSettings(db, settings) {
-  await setDoc(doc(db, "settings", "main"), settings, { merge: true });
+  if (!Number.isInteger(settings.familySize) || settings.familySize < 1) {
+    throw new Error("Family size must be a whole number of at least 1.");
+  }
+  const ref = doc(db, "settings", "main");
+  await runTransaction(db, async (tx) => {
+    await tx.get(ref);
+    tx.set(ref, settings, { merge: true });
+  });
 }
 
 export async function getRecipeCache(db) {
@@ -53,6 +61,10 @@ export async function addRecipe(db, recipe) {
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     const recipes = snap.exists() ? (snap.data().recipes || []) : [];
+    const sourceIdentity = canonicalRecipeUrl(recipe.sourceUrl);
+    if (recipes.some((r) => r.uid === recipe.uid || (sourceIdentity && canonicalRecipeUrl(r.sourceUrl) === sourceIdentity))) {
+      throw new Error("This recipe was added elsewhere. Reopen Recipes to review the saved version.");
+    }
     tx.set(ref, { recipes: [...recipes, recipe] }, { merge: true });
   });
 }
@@ -63,6 +75,9 @@ export async function updateRecipe(db, uid, updates) {
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists()) throw new Error("Recipe library is missing.");
+    if (!(snap.data().recipes || []).some((r) => r.uid === uid)) {
+      throw new Error("This recipe was removed elsewhere. Your edits have not been saved.");
+    }
     const recipes = (snap.data().recipes || []).map((r) => (r.uid === uid ? { ...r, ...updates } : r));
     tx.set(ref, { recipes }, { merge: true });
   });
@@ -80,11 +95,16 @@ export async function deleteRecipe(db, uid) {
 // Applies { [uid]: weekKey } lastCooked updates to the cached recipes array.
 export async function updateRecipeLastCooked(db, lastCookedUpdates) {
   if (Object.keys(lastCookedUpdates).length === 0) return;
-  const cache = await getRecipeCache(db);
-  const updatedRecipes = cache.recipes.map((r) =>
-    lastCookedUpdates[r.uid] ? { ...r, lastCooked: lastCookedUpdates[r.uid] } : r
-  );
-  await setDoc(doc(db, "recipeCache", "main"), { ...cache, recipes: updatedRecipes }, { merge: true });
+  const ref = doc(db, "recipeCache", "main");
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Recipe library is missing.");
+    const recipes = snap.data().recipes.map((r) =>
+      lastCookedUpdates[r.uid] && (!r.lastCooked || lastCookedUpdates[r.uid] > r.lastCooked)
+        ? { ...r, lastCooked: lastCookedUpdates[r.uid] } : r
+    );
+    tx.set(ref, { recipes }, { merge: true });
+  });
 }
 
 export async function getWeekState(db, weekKey) {
@@ -96,15 +116,23 @@ export async function getWeekState(db, weekKey) {
 // Stamps every write with when it happened, so callers that hold picks/candidates in
 // memory across an async gap (the Menu tab's Save/Shuffle) can detect that another tab
 // or device saved over this week in the meantime — see menu.js's staleness guard.
+function nextUpdatedAt(previous) {
+  // A strictly increasing stamp also detects two saves in the same millisecond.
+  return new Date(Math.max(Date.now(), (Date.parse(previous) || 0) + 1)).toISOString();
+}
+
 export async function saveWeekState(db, weekKey, data, expectedUpdatedAt = undefined) {
   const ref = doc(db, "weekState", weekKey);
-  const updatedAt = new Date().toISOString();
+  let updatedAt;
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     const latest = snap.exists() ? snap.data() : {};
     if (expectedUpdatedAt !== undefined && (latest.updatedAt || null) !== expectedUpdatedAt) {
-      throw new Error("This week changed elsewhere. Reload the page to review the latest picks before saving.");
+      const error = new Error("This week changed elsewhere. Reload the page to review the latest picks before saving.");
+      error.code = "week-conflict";
+      throw error;
     }
+    updatedAt = nextUpdatedAt(latest.updatedAt);
     tx.set(ref, { ...data, updatedAt }, { merge: true });
   });
   return updatedAt;
@@ -112,10 +140,11 @@ export async function saveWeekState(db, weekKey, data, expectedUpdatedAt = undef
 
 export async function updateWeekCheck(db, weekKey, type, key, value, recipeUid = null) {
   const ref = doc(db, "weekState", weekKey);
-  const updatedAt = new Date().toISOString();
+  let updatedAt;
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     const state = snap.exists() ? snap.data() : {};
+    updatedAt = nextUpdatedAt(state.updatedAt);
     if (type === "grocery") {
       tx.set(ref, { groceryChecks: { ...(state.groceryChecks || {}), [key]: value }, updatedAt }, { merge: true });
       return;
@@ -152,7 +181,11 @@ export async function migrateLegacyWeekKey(db, newWeekKey, legacyWeekKey) {
 }
 
 export async function appendHistory(db, entry) {
-  await setDoc(doc(db, "history", entry.weekKey), entry, { merge: true });
+  const ref = doc(db, "history", entry.weekKey);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) tx.set(ref, entry);
+  });
 }
 
 // Every past week that had picks when it rolled over (see shared/rollover.js), newest

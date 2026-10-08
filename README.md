@@ -189,3 +189,38 @@ deployed container otherwise. `functions/shared/` is generated, gitignored.
 ```
 node --test docs/shared/*.test.js
 ```
+
+
+### Firebase failure and concurrency checks
+
+Install test dependencies with `npm ci`. The integration suite uses the same Firebase
+10.14.1 SDK as the browser and the actual production rules, against the isolated
+`demo-mealplans` Firestore emulator. It refuses to run without an emulator address.
+With Firebase CLI and Java 21 available on PATH:
+
+```sh
+npm test
+npm run test:emulator
+```
+
+On this Mac, Java is installed at `/opt/homebrew/opt/openjdk@21/bin`; prepend that
+directory to PATH for the emulator command if necessary. No shell profile change is needed.
+
+To repeat browser recovery checks, start the demo Firestore and Auth emulators:
+
+```sh
+firebase emulators:start --project demo-mealplans --config firebase.test.json --only firestore,auth
+```
+
+In another terminal:
+
+```sh
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 node tests/serve-emulator-preview.mjs
+```
+
+Open `http://127.0.0.1:8766`. Its test controls revoke and restore anonymous access,
+so real rule failures can be exercised while keeping forms open. This harness
+copies the app into a temporary directory, seeds disposable demo recipes, replaces
+URL fetching with a fixture, and connects exclusively to localhost emulators.
+It never uses the production project. Running the browser harness clears demo
+emulator data; run it after, not alongside, the automated suite.

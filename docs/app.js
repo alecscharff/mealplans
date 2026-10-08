@@ -59,6 +59,18 @@ function candidateSeed(settings, weekState) {
 // current one) works identically — there's no deadline auto-pick special case.
 async function ensureWeek(db, weekKey, settings, availableRecipes) {
   let weekState = await getWeekState(db, weekKey);
+  const loadedUpdatedAt = weekState?.updatedAt || null;
+  async function persist() {
+    try {
+      weekState.updatedAt = await saveWeekState(db, weekKey, weekState, loadedUpdatedAt);
+    } catch (error) {
+      if (error.code !== "week-conflict") throw error;
+      // Another tab initialized or edited this week while we were generating it.
+      // Use its saved state rather than overwriting it with our suggestions.
+      weekState = await getWeekState(db, weekKey);
+      if (!weekState) throw error;
+    }
+  }
   if (!weekState) {
     const candidates = generateCandidates(availableRecipes, weekKey, candidateSeed(settings, null), {
       takeCount: CANDIDATES_PER_WEEK,
@@ -71,7 +83,7 @@ async function ensureWeek(db, weekKey, settings, availableRecipes) {
       shuffleNonce: 0,
       archived: false,
     };
-    await saveWeekState(db, weekKey, weekState);
+    await persist();
   } else if (
     weekState.picks.length < 2 &&
     weekState.candidates.length !== Math.min(availableRecipes.length, CANDIDATES_PER_WEEK)
@@ -82,7 +94,7 @@ async function ensureWeek(db, weekKey, settings, availableRecipes) {
       takeCount: CANDIDATES_PER_WEEK,
     });
     weekState = { ...weekState, candidates };
-    await saveWeekState(db, weekKey, weekState);
+    await persist();
   }
   return weekState;
 }
@@ -99,7 +111,7 @@ async function loadState(db) {
   for (const entry of rollover.historyAppends) {
     await appendHistory(db, {
       ...entry,
-      recipes: entry.recipeUids.map((uid) => recipeCache.recipes.find((r) => r.uid === uid)).filter(Boolean).map(({ uid, name, sourceUrl, image, servings, totalTimeMinutes, ingredientsRaw, ingredientsParsed, directions }) => ({ uid, name, sourceUrl, image, servings, totalTimeMinutes, ingredientsRaw, ingredientsParsed, directions })),
+      recipes: entry.recipeUids.map((uid) => recipeCache.recipes.find((r) => r.uid === uid)).filter(Boolean).map((recipe) => ({ ...recipe })),
     });
   }
   if (Object.keys(rollover.lastCookedUpdates).length > 0) {
