@@ -39,14 +39,14 @@ planner, deadline auto-pick was removed). This README covers current state.
     URL already in the rotation updates that recipe instead of duplicating it. Below
     the form, the full recipe list — searchable/filterable by protein and cook time,
     with inline delete; skipped recipes (see below) show dimmed.
-  - **Settings** — family size.
+  - **Settings** — family size, meal plan emails, and recipe ideas submitted by email.
   - Plus two views reached by navigation rather than a tab: **recipe detail**
     (hero image, servings-adjustable ingredients — defaulting to family size, with bold
     ingredient names — instructions split into individually tap-to-cross-out lines with
     bold ingredient mentions, source link) and **edit recipe** (editable name/image/
     servings/cook time/ingredients/steps, "Refresh from source" to re-scrape, a
     Skip/Include-in-rotation toggle, delete).
-- `functions/` — one Cloud Function, `scrapeRecipeUrl`, an HTTPS callable that fetches a
+- `functions/` — a recipe importer, `scrapeRecipeUrl`, an HTTPS callable that fetches a
   pasted recipe URL server-side (avoids the frontend's CORS restrictions) and extracts
   its schema.org Recipe JSON-LD: name, image, servings, cook time, ingredients, and
   steps (splitting a source page's `<ul><li>` sub-steps into discrete steps, and
@@ -76,7 +76,7 @@ reject the fetch outright; most independent recipe blogs work fine.
 
 ## Firebase project: `mealplan-a82b0` (live)
 
-- Firestore database (`nam5`), security rules deployed, Anonymous Auth enabled.
+- Firestore database (`nam5`). The household sign-in rollout below replaces anonymous access with verified Google accounts.
 - Web app registered; config in `docs/firebase-config.js` / `.firebaserc` (not secret —
   safe to be public in the static bundle).
 - `settings/main`: `familySize`, `shuffleSeed`.
@@ -90,6 +90,39 @@ Console: https://console.firebase.google.com/project/mealplan-a82b0/overview
 Live site: https://alotta.fun/mealplans/ (GitHub Pages, custom domain inherited from
 the `alecscharff.github.io` user-site repo's CNAME — cascades to all project sites on
 that account, this wasn't configured specifically for this repo).
+
+### Household access and email setup
+
+1. In Firebase Authentication, enable Google sign-in and add `alotta.fun` to Authorized domains.
+2. In the Firestore console, create `privateConfig/household`. Add an `emails` array with the two household Google addresses in lowercase. Put the address that should receive ordinary replies first. The console can read and edit this document. Browser clients cannot.
+3. Verify your sender domain in Resend and copy the default inbound domain shown under Receiving. Use any address on that inbound domain for the parameter below. Create `functions/.env.mealplan-a82b0` locally with these non-secret Firebase parameters:
+
+   ```dotenv
+   MENU_FROM_EMAIL=verified-sender@example.com
+   MENU_INBOUND_EMAIL=menu@your-id.resend.app
+   ```
+
+   Store a Resend API key with access to sending and receiving, plus the signing secret from Resend’s `email.received` webhook, in Secret Manager:
+
+   ```sh
+   firebase functions:secrets:set MENU_RESEND_API_KEY
+   firebase functions:secrets:set MENU_RESEND_WEBHOOK_SECRET
+   firebase functions:secrets:set MENU_GEMINI_API_KEY
+   ```
+
+   If the reply function has not been deployed yet, create the webhook with its expected HTTPS URL and check the URL after deployment.
+
+4. Publish the Google sign-in frontend and deploy the functions and Firestore rules together in the same release. There can be a brief period when an old browser tab needs a reload.
+
+   ```sh
+   firebase deploy --only firestore:rules,functions
+   ```
+
+5. Point the Resend `email.received` webhook at the deployed `receiveMenuReply` HTTPS URL. Verify both Google accounts can load and edit the plan, and verify an unrelated account is denied. In Settings, click “Send me a test email” while signed into your household Google account. This sends only to your address and works while scheduled email is Off. After delivery is verified, turn on Weekly email. Turn on Weekly email + reply handling for the next delivery and test a reply with the exact names of the meal and one of its alternatives.
+
+The schedule runs Sunday at 9 a.m. Pacific. It sends the current week's saved picks or labels any unsaved picks as suggestions. Email starts Off. Off stops future deliveries and automated reply processing. Mail already handed to Resend can still arrive. Old links open the week in the app or its history if it has rolled over. Replies to an older automated message can reach Resend after its reply address has been retired, so use the link for changes in that case. A send is claimed once per week and recipient to avoid duplicate messages. Inspect the function logs and private `menuDeliveries` status if a delivery fails. An uncertain send is never retried automatically.
+
+The optional reply mode recognizes named swaps with the week's alternatives, requests for quicker meals, and recipe links. A link shared as a suggestion is held for review in Settings. Reply “Add this recipe” with a recipe URL to import it directly into the library. An existing recipe with the same source URL is kept. Reply “Delete [full recipe name]” to see the affected weeks and receive a confirmation code. Only the matching confirmation reply in that email thread can delete it, and the code expires after 24 hours. The deletion also removes the recipe from upcoming picks and alternatives. Replies are tied to the per-recipient address and the menu version from the email. Replies that do not match the built-in rules go to Gemini 2.5 Flash-Lite via the Gemini Developer API. Use an API key from a project with paid Gemini API billing. Set it through the secret command above. The fallback can change one or more weeks within the four-week planner. The fallback sends the reply text and meal-planning context to Gemini. The weekly-only and Off modes do not call Gemini.
 
 ### Deploying changes
 

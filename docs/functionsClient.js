@@ -16,3 +16,9 @@ export async function scrapeRecipeUrl(url) {
   const result = await scrapeRecipeUrlCallable({ url });
   return result.data;
 }
+
+export async function sendMenuTestEmail() {
+  const send = httpsCallable(getFunctions(getApp()), "sendMenuTestEmail");
+  const result = await send();
+  return result.data;
+}

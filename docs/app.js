@@ -208,11 +208,49 @@ function setupTabs() {
 
 async function main() {
   try {
-    const db = await initFirebase();
-    ctx = await loadState(db);
+    const session = await initFirebase();
+    if (!await session.isHouseholdSignedIn()) {
+      statusEl.textContent = "Sign in with a household Google account to open Sunday Menu.";
+      const button = document.createElement("button");
+      button.className = "pick-button";
+      button.textContent = "Sign in with Google";
+      button.onclick = async () => {
+        button.disabled = true;
+        try {
+          await session.signIn();
+          if (await session.isHouseholdSignedIn()) {
+            location.reload();
+            return;
+          }
+          await session.signOut();
+          statusEl.textContent = "That Google account does not have access to Sunday Menu.";
+        } catch (error) {
+          statusEl.textContent = error.message;
+        } finally {
+          button.disabled = false;
+        }
+      };
+      appEl.append(button);
+      return;
+    }
+    ctx = await loadState(session.db);
+    const signOut = document.getElementById("sign-out");
+    signOut.hidden = false;
+    signOut.onclick = async () => {
+      if (!canLeaveCurrentView()) return;
+      await session.signOut();
+      location.reload();
+    };
     statusEl.remove();
+    document.querySelector(".tabs").hidden = false;
     setupTabs();
     renderCurrentTab();
+    const linkedWeek = new URLSearchParams(location.search).get("week");
+    if (linkedWeek && ctx.upcomingWeeks.some(({ weekKey }) => weekKey === linkedWeek)) {
+      document.getElementById(`week-${linkedWeek}`)?.scrollIntoView({ block: "start" });
+    } else if (linkedWeek && linkedWeek < ctx.currentWeekKey && /^\d{4}-\d{2}-\d{2}$/.test(linkedWeek)) {
+      navigate("history", { weekKey: linkedWeek });
+    }
   } catch (err) {
     console.error(err);
     statusEl.textContent = `Failed to load: ${err.message}`;

@@ -6,7 +6,7 @@ import { createRecipeThumb } from "./recipeImage.js";
 // recipes, since the Menu/Grocery tabs only ever show the current week plus a few
 // ahead and a week disappears from both the moment it rolls over.
 export function renderHistory(container, ctx) {
-  const { history, recipesByUid, archivedRecipesByUid, navigate } = ctx;
+  const { history, recipesByUid, archivedRecipesByUid, navigate, params } = ctx;
 
   if (!history || history.length === 0) {
     const notice = document.createElement("div");
@@ -19,6 +19,7 @@ export function renderHistory(container, ctx) {
   for (const entry of history) {
     const section = document.createElement("section");
     section.className = "week-section";
+    section.id = `history-${entry.weekKey}`;
 
     const heading = document.createElement("h3");
     heading.textContent = formatWeekLabel(entry.weekKey);
@@ -54,4 +55,5 @@ export function renderHistory(container, ctx) {
 
     container.appendChild(section);
   }
+  if (params?.weekKey) document.getElementById(`history-${params.weekKey}`)?.scrollIntoView({ block: "start" });
 }

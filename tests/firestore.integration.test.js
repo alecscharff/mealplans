@@ -7,17 +7,19 @@ import { initializeApp, deleteApp } from 'firebase/app';
 import net from 'node:net';
 import { addRecipe, updateRecipe, deleteRecipe, updateRecipeLastCooked, getRecipeCache, saveWeekState, getWeekState, updateWeekCheck, saveSettings, appendHistory } from '../docs/firestore.js';
 let env, a, b, denied;
+const googleClaims = (email) => ({email, email_verified:true, firebase:{sign_in_provider:'google.com'}});
 const seedRecipe = {uid:'a',name:'Original',lastCooked:null};
 before(async()=>{
   assert.ok(process.env.FIRESTORE_EMULATOR_HOST, 'Run inside the Firestore emulator; production is forbidden.');
   env=await initializeTestEnvironment({projectId:'demo-mealplans',firestore:{rules:await readFile(new URL('../firestore.rules',import.meta.url),'utf8')}});
-  a=env.authenticatedContext('a').firestore(); b=env.authenticatedContext('b').firestore(); denied=env.unauthenticatedContext().firestore();
+  a=env.authenticatedContext('a', googleClaims('First.Test@example.com')).firestore(); b=env.authenticatedContext('b', googleClaims('second.test@example.com')).firestore(); denied=env.unauthenticatedContext().firestore();
 });
 after(async()=>{await env?.cleanup()});
 beforeEach(async()=>{await env.clearFirestore();await env.withSecurityRulesDisabled(async(ctx)=>{
   const seedDb=ctx.firestore();
   await setDoc(doc(seedDb,'recipeCache','main'),{recipes:[seedRecipe]});
   await setDoc(doc(seedDb,'settings','main'),{familySize:4});
+  await setDoc(doc(seedDb,'privateConfig','household'),{emails:['first.test@example.com','second.test@example.com']});
 });});
 test('simultaneous recipe additions preserve both entries',async()=>{
   await Promise.all([addRecipe(a,{uid:'b',name:'B'}),addRecipe(b,{uid:'c',name:'C'})]);
@@ -58,36 +60,6 @@ test('permission failures reject all write paths without changing saved data',as
   assert.equal((await getRecipeCache(a)).recipes[0].name,'Original');
   assert.equal((await getDoc(doc(a,'settings','main'))).data().familySize,4);
 });
-test('disconnected transactional saves reject and succeed after reconnect', {timeout:60000}, async()=>{
-  let disconnected=false;
-  const sockets=new Set();
-  const proxy=net.createServer(client=>{
-    if(disconnected){client.destroy();return;}
-    const upstream=net.connect(8080,'127.0.0.1'); sockets.add(client); sockets.add(upstream);
-    client.pipe(upstream); upstream.pipe(client);
-    client.on('error',()=>upstream.destroy()); upstream.on('error',()=>client.destroy());
-    client.on('close',()=>{sockets.delete(client);upstream.destroy()}); upstream.on('close',()=>{sockets.delete(upstream);client.destroy()});
-  });
-  await new Promise(resolve=>proxy.listen(8081,'127.0.0.1',resolve));
-  const app=initializeApp({projectId:'demo-mealplans'},'connection-failure');
-  const offlineDb=getFirestore(app);
-  connectFirestoreEmulator(offlineDb,'127.0.0.1',8081,{mockUserToken:{sub:'offline',user_id:'offline'}});
-  try {
-    await getRecipeCache(offlineDb);
-    disconnected=true; for(const socket of sockets) socket.destroy();
-    await assert.rejects(()=>addRecipe(offlineDb,{uid:'b',name:'Recovered'}),error=>error.code==='unavailable');
-    await assert.rejects(()=>saveSettings(offlineDb,{familySize:6}),error=>error.code==='unavailable');
-    disconnected=false;
-    await addRecipe(offlineDb,{uid:'b',name:'Recovered'});
-    assert.equal((await getRecipeCache(offlineDb)).recipes.length,2);
-    await saveSettings(offlineDb,{familySize:6});
-    assert.equal((await getDoc(doc(offlineDb,'settings','main'))).data().familySize,6);
-  } finally {
-    await deleteApp(app); for(const socket of sockets) socket.destroy();
-    await new Promise(resolve=>proxy.close(resolve));
-  }
-});
-
 test('concurrent imports with tracking variants cannot create duplicates',async()=>{
   const results=await Promise.allSettled([
     addRecipe(a,{uid:'b',name:'B',sourceUrl:'https://cooking.nytimes.com/recipes/1022532-bean-and-cheese-burritos?art=123'}),
@@ -113,4 +85,48 @@ test('week versions remain distinct even under an identical clock',async()=>{
 test('storage validation rejects invalid settings without writing',async()=>{
   for(const familySize of [0,-1,1.5,NaN])await assert.rejects(()=>saveSettings(a,{familySize}),/whole number/);
   assert.equal((await getDoc(doc(a,'settings','main'))).data().familySize,4);
+});
+
+test('anonymous, unrelated and unverified users cannot read or change the household plan', async () => {
+  await assert.rejects(() => getDoc(doc(a, 'privateConfig', 'household')), { code: 'permission-denied' });
+  const claims = [
+    { firebase: { sign_in_provider: 'anonymous' } },
+    googleClaims('someone@example.com'),
+    { ...googleClaims('first.test@example.com'), email_verified: false },
+  ];
+  for (const [index, token] of claims.entries()) {
+    const outsider = env.authenticatedContext(`outsider-${index}`, token).firestore();
+    await assert.rejects(() => getRecipeCache(outsider), { code: 'permission-denied' });
+    await assert.rejects(() => saveWeekState(outsider, '2026-10-11', { picks: ['a'] }), { code: 'permission-denied' });
+  }
+});
+
+test('disconnected transactional saves reject and succeed after reconnect', {timeout:60000}, async()=>{
+  let disconnected=false;
+  const sockets=new Set();
+  const proxy=net.createServer(client=>{
+    if(disconnected){client.destroy();return;}
+    const upstream=net.connect(8080,'127.0.0.1'); sockets.add(client); sockets.add(upstream);
+    client.pipe(upstream); upstream.pipe(client);
+    client.on('error',()=>upstream.destroy()); upstream.on('error',()=>client.destroy());
+    client.on('close',()=>{sockets.delete(client);upstream.destroy()}); upstream.on('close',()=>{sockets.delete(upstream);client.destroy()});
+  });
+  await new Promise(resolve=>proxy.listen(8081,'127.0.0.1',resolve));
+  const app=initializeApp({projectId:'demo-mealplans'},'connection-failure');
+  const offlineDb=getFirestore(app);
+  connectFirestoreEmulator(offlineDb,'127.0.0.1',8081,{mockUserToken:{sub:'offline',user_id:'offline',...googleClaims('first.test@example.com')}});
+  try {
+    await getRecipeCache(offlineDb);
+    disconnected=true; for(const socket of sockets) socket.destroy();
+    await assert.rejects(()=>addRecipe(offlineDb,{uid:'b',name:'Recovered'}),error=>error.code==='unavailable');
+    await assert.rejects(()=>saveSettings(offlineDb,{familySize:6}),error=>error.code==='unavailable');
+    disconnected=false;
+    await addRecipe(offlineDb,{uid:'b',name:'Recovered'});
+    assert.equal((await getRecipeCache(offlineDb)).recipes.length,2);
+    await saveSettings(offlineDb,{familySize:6});
+    assert.equal((await getDoc(doc(offlineDb,'settings','main'))).data().familySize,6);
+  } finally {
+    await deleteApp(app); for(const socket of sockets) socket.destroy();
+    await new Promise(resolve=>proxy.close(resolve));
+  }
 });

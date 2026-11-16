@@ -67,6 +67,7 @@ function renderWeekSection({
 }) {
   const section = document.createElement("section");
   section.className = "week-section";
+  section.id = `week-${weekKey}`;
 
   const headerRow = document.createElement("div");
   headerRow.className = "week-header";

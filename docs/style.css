@@ -782,3 +782,18 @@ main#app ol {
 }
 
 form.settings-form[hidden] { display: none !important; }
+
+
+.tabs[hidden] {
+  display: none;
+}
+
+.settings-form select {
+  display: block;
+  max-width: 100%;
+  font: inherit;
+}
+
+.week-section {
+  scroll-margin-top: 1rem;
+}

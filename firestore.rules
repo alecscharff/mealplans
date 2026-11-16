@@ -1,14 +1,21 @@
 rules_version = '2';
 
-// This app's Firebase client config is public (it ships in a static GitHub Pages
-// bundle), so these rules are the only real access control. Every family member
-// signs in anonymously on load; there's no per-user identity beyond "has an anon
-// session", which is an intentionally low bar for a private single-family app.
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isHousehold() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in get(/databases/$(database)/documents/privateConfig/household).data.emails;
+    }
+
+    match /menuSuggestions/{id} {
+      allow read, delete: if isHousehold();
+    }
+
 
     match /settings/main {
-      allow read, write: if request.auth != null;
+      allow read, write: if isHousehold();
     }
 
     // recipeCache/main is seeded once at project setup and never recreated, so client
@@ -17,18 +24,18 @@ service cloud.firestore {
     // docs/app.js + docs/firestore.js). `create`/`delete` stay blocked so a client can't
     // fabricate a fresh doc at this path or wipe the whole cache outright.
     match /recipeCache/main {
-      allow read, update: if request.auth != null;
+      allow read, update: if isHousehold();
       allow create, delete: if false;
     }
 
     match /weekState/{weekKey} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isHousehold();
     }
 
     // History is append-only — each week's entry is written once during rollover
     // and never edited or removed afterward.
     match /history/{weekKey} {
-      allow read, create: if request.auth != null;
+      allow read, create: if isHousehold();
       allow update, delete: if false;
     }
   }

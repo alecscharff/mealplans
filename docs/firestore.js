@@ -1,7 +1,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {
   getAuth,
-  signInAnonymously,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
   getFirestore,
@@ -16,14 +18,35 @@ import {
 import { firebaseConfig } from "./firebase-config.js";
 import { canonicalRecipeUrl } from "./shared/canonicalUrl.js";
 
-let dbInstance = null;
-
 export async function initFirebase() {
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  await signInAnonymously(auth);
-  dbInstance = getFirestore(app);
-  return dbInstance;
+  await auth.authStateReady();
+  const db = getFirestore(app);
+  return {
+    db,
+    async isHouseholdSignedIn() {
+      if (!auth.currentUser?.providerData.some(({ providerId }) => providerId === "google.com")) return false;
+      try {
+        await getDoc(doc(db, "settings", "main"));
+        return true;
+      } catch (error) {
+        if (error.code === "permission-denied") return false;
+        throw error;
+      }
+    },
+    signIn: () => signInWithPopup(auth, new GoogleAuthProvider()),
+    signOut: () => signOut(auth),
+  };
+}
+
+export async function getMenuSuggestions(db) {
+  const snapshot = await getDocs(collection(db, "menuSuggestions"));
+  return snapshot.docs.map((entry) => ({ ...entry.data(), id: entry.id }));
+}
+
+export function dismissMenuSuggestion(db, id) {
+  return deleteDoc(doc(db, "menuSuggestions", id));
 }
 
 export async function getSettings(db) {
@@ -40,8 +63,14 @@ export async function saveSettings(db, settings) {
   }
   const ref = doc(db, "settings", "main");
   await runTransaction(db, async (tx) => {
-    await tx.get(ref);
-    tx.set(ref, settings, { merge: true });
+    const snapshot = await tx.get(ref);
+    const data = { ...settings };
+    if (Object.hasOwn(data, "emailMode")) {
+      const current = snapshot.data();
+      if (current?.emailMode === data.emailMode) delete data.emailMode;
+      else data.emailModeChangedAt = new Date().toISOString();
+    }
+    tx.set(ref, data, { merge: true });
   });
 }
 
