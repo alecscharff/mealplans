@@ -1,3 +1,4 @@
+import { formatWeekNotes } from "../shared/weekNotes.js";
 import { formatWeekLabel } from "./weekLabel.js";
 import { createRecipeThumb } from "./recipeImage.js";
 
@@ -25,10 +26,16 @@ export function renderHistory(container, ctx) {
     heading.textContent = formatWeekLabel(entry.weekKey);
     section.appendChild(heading);
 
+    if (formatWeekNotes(entry)) {
+      const notes = document.createElement("p");
+      notes.className = "saved-week-notes";
+      notes.textContent = formatWeekNotes(entry);
+      section.append(notes);
+    }
     const archived = entry.recipes || [];
     const recipes = entry.recipeUids.map((uid) => recipesByUid[uid] || archived.find((r) => r.uid === uid) || archivedRecipesByUid?.[uid]).filter(Boolean);
 
-    if (recipes.length === 0) {
+    if (recipes.length === 0 && entry.recipeUids.length > 0) {
       const note = document.createElement("p");
       note.className = "note-inline";
       note.textContent = "These recipes are no longer in your rotation.";

@@ -68,3 +68,12 @@ test("computeRollover handles multiple stale weeks in one pass", () => {
   assert.deepEqual(result.archivedWeekKeys, ["2026-06-29", "2026-07-06"]);
   assert.deepEqual(result.lastCookedUpdates, { r1: "2026-06-29", r2: "2026-07-06" });
 });
+
+test("rollover retains weekly and ordered day notes even without recipe picks", () => {
+  const dayNotes = ["Leftovers", "", "Dinner out"];
+  const result = computeRollover([{ weekKey: "2026-07-05", picks: [], note: "Busy week", dayNotes }], "2026-07-12");
+  assert.equal(result.historyAppends[0].note, "Busy week");
+  assert.deepEqual(result.historyAppends[0].dayNotes, dayNotes);
+  assert.deepEqual(result.historyAppends[0].recipeUids, []);
+  assert.deepEqual(result.lastCookedUpdates, {});
+});

@@ -1,3 +1,4 @@
+import { WEEK_DAYS } from "../shared/weekNotes.js";
 import { saveWeekState, getWeekState } from "../firestore.js";
 import { generateCandidates, replaceCandidate } from "../shared/candidates.js";
 import { deriveTags, PROTEIN_TAG_OPTIONS } from "../shared/recipeTags.js";
@@ -101,6 +102,39 @@ function renderWeekSection({
   picker.hidden = true;
   section.appendChild(picker);
 
+  const notes = document.createElement("div");
+  notes.className = "week-notes";
+  const noteLabel = document.createElement("label");
+  noteLabel.textContent = "Notes for the week (optional)";
+  const noteInput = document.createElement("textarea");
+  noteInput.rows = 2;
+  noteInput.placeholder = "Leftovers, dinner out, or anything else to remember…";
+  noteInput.value = weekState.note || "";
+  noteLabel.append(noteInput);
+  notes.append(noteLabel);
+  const dayDetails = document.createElement("details");
+  const summary = document.createElement("summary");
+  summary.textContent = "Day-by-day notes (optional)";
+  dayDetails.append(summary);
+  dayDetails.open = (weekState.dayNotes || []).some(Boolean);
+  const dayInputs = WEEK_DAYS.map((day, index) => {
+    const label = document.createElement("label");
+    label.textContent = day;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "e.g. Leftovers or dinner out";
+    input.value = weekState.dayNotes?.[index] || "";
+    label.append(input);
+    dayDetails.append(label);
+    return input;
+  });
+  notes.append(dayDetails);
+  section.append(notes);
+  const readNotes = () => ({ note: noteInput.value, dayNotes: dayInputs.map(input => input.value) });
+  for (const input of [noteInput, ...dayInputs]) {
+    input.addEventListener("input", () => { hasUserChanges = true; updateSaveState(); });
+  }
+
   const saveButton = document.createElement("button");
   saveButton.type = "button";
   saveButton.textContent = "Save suggested picks";
@@ -118,20 +152,60 @@ function renderWeekSection({
   let candidates = weekState.candidates.slice();
   let selected = weekState.picks.length > 0 ? weekState.picks.slice() : candidates.slice(0, 2);
   let hasUserChanges = false;
-  registerDirtyCheck?.(() => !hasUserChanges || confirm(`The picks for ${formatWeekLabel(weekKey)} have unsaved changes. Leave without saving?`), () => hasUserChanges);
+  registerDirtyCheck?.(() => !hasUserChanges || confirm(`The plan for ${formatWeekLabel(weekKey)} have unsaved changes. Leave without saving?`), () => hasUserChanges);
   let originallySaved = weekState.picks.length > 0;
   let savedPicks = weekState.picks.slice();
   let savedCandidates = weekState.candidates.slice();
   function updateSaveState() {
     const changed = hasUserChanges || (originallySaved && (selected.join("|") !== savedPicks.join("|") || candidates.join("|") !== savedCandidates.join("|")));
     saveButton.disabled = !changed && originallySaved;
-    saveButton.textContent = changed ? "Save picks" : originallySaved ? "Saved" : "Save suggested picks";
+    saveButton.textContent = changed ? "Save plan" : originallySaved ? "Saved" : "Save suggested picks";
     saveStatus.textContent = changed ? "Unsaved changes" : originallySaved ? "Saved for this week" : "Suggested picks · not saved yet";
   }
   function replaceSelected(index, uid) {
     const previous = selected[index];
     selected[index] = uid;
     candidates = replaceCandidate(candidates, previous, uid);
+  }
+  function chooseRecipe(uid, trigger) {
+    function apply(index) {
+      if (index == null) togglePick(uid);
+      else replaceSelected(index, uid);
+      hasUserChanges = true;
+      renderList();
+      if (!picker.hidden) renderPicker();
+      updateSaveState();
+    }
+    if (selected.includes(uid) || selected.length < 2) { apply(); return; }
+    const dialog = document.createElement("dialog");
+    dialog.className = "replace-dialog";
+    const title = document.createElement("h3");
+    title.id = `replace-title-${weekKey}`;
+    title.textContent = "Which meal would you like to replace?";
+    dialog.setAttribute("aria-labelledby", title.id);
+    const description = document.createElement("p");
+    description.textContent = `Adding ${recipesByUid[uid]?.name || "this recipe"}`;
+    dialog.append(title, description);
+    selected.forEach((pickedUid, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "replace-option";
+      button.append(createRecipeThumb(recipesByUid[pickedUid] || {}));
+      const label = document.createElement("span");
+      label.textContent = recipesByUid[pickedUid]?.name || "Selected meal";
+      button.append(label);
+      button.onclick = () => { dialog.close(); apply(index); saveButton.focus(); };
+      dialog.append(button);
+    });
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "pick-button";
+    cancel.textContent = "Cancel";
+    cancel.onclick = () => dialog.close();
+    dialog.append(cancel);
+    dialog.addEventListener("close", () => { dialog.remove(); if (trigger.isConnected) trigger.focus(); });
+    section.append(dialog);
+    dialog.showModal();
   }
   let pickerFilters = { query: "", protein: "", maxMinutes: null };
 
@@ -177,7 +251,7 @@ function renderWeekSection({
 
   function renderList() {
     list.innerHTML = "";
-    for (const uid of candidates) {
+    for (const uid of [...selected, ...candidates.filter(id => !selected.includes(id))]) {
       const recipe = recipesByUid[uid];
       if (!recipe) continue;
 
@@ -228,17 +302,7 @@ function renderWeekSection({
       button.className = "pick-button" + (selected.includes(uid) ? " selected" : "");
       button.textContent = selected.includes(uid) ? (!originallySaved && !hasUserChanges ? "Suggested" : "Picked") : selected.length >= 2 ? "Replace…" : "Pick";
       button.setAttribute("aria-pressed", String(selected.includes(uid)));
-      button.addEventListener("click", () => {
-        if (!selected.includes(uid) && selected.length >= 2) {
-          const choice = prompt(`Replace which meal?\n1. ${recipesByUid[selected[0]]?.name || "First meal"}\n2. ${recipesByUid[selected[1]]?.name || "Second meal"}`, "1");
-          if (choice !== "1" && choice !== "2") return;
-          replaceSelected(Number(choice) - 1, uid);
-        } else togglePick(uid);
-        hasUserChanges = true;
-        renderList();
-        if (!picker.hidden) renderPicker();
-        updateSaveState();
-      });
+      button.addEventListener("click", () => chooseRecipe(uid, button));
       card.appendChild(button);
 
       list.appendChild(card);
@@ -312,7 +376,8 @@ function renderWeekSection({
       pickerList.innerHTML = "";
       const excluded = usedByOtherWeeks();
       const eligible = recipeCache.recipes.filter((r) => !excluded.has(r.uid));
-      const matches = sortByRecentlyAdded(filterRecipes(eligible, pickerFilters));
+      const matches = sortByRecentlyAdded(filterRecipes(eligible, pickerFilters))
+        .sort((a, b) => Number(selected.includes(b.uid)) - Number(selected.includes(a.uid)));
 
       if (matches.length === 0) {
         const empty = document.createElement("p");
@@ -346,17 +411,7 @@ function renderWeekSection({
         useButton.type = "button";
         useButton.className = "pick-button" + (isSelected ? " selected" : "");
         useButton.textContent = isSelected ? "Picked" : selected.length >= 2 ? "Replace…" : "Use this recipe";
-        useButton.addEventListener("click", () => {
-          if (!selected.includes(recipe.uid) && selected.length >= 2) {
-            const choice = prompt(`Replace which meal?\n1. ${recipesByUid[selected[0]]?.name || "First meal"}\n2. ${recipesByUid[selected[1]]?.name || "Second meal"}`, "1");
-            if (choice !== "1" && choice !== "2") return;
-            replaceSelected(Number(choice) - 1, recipe.uid);
-          } else togglePick(recipe.uid);
-          hasUserChanges = true;
-          renderList();
-          renderPickerList();
-          updateSaveState();
-        });
+        useButton.addEventListener("click", () => chooseRecipe(recipe.uid, useButton));
         row.appendChild(useButton);
 
         pickerList.appendChild(row);
@@ -382,9 +437,9 @@ function renderWeekSection({
       saveButton.textContent = "Save picks";
       return;
     }
-    const updatedAt = await saveWeekState(db, weekKey, { candidates, picks: selected }, staleCheck.updatedAt);
+    const updatedAt = await saveWeekState(db, weekKey, { candidates, picks: selected, ...readNotes() }, staleCheck.updatedAt);
     hasUserChanges = false;
-    Object.assign(weekState, { candidates: candidates.slice(), picks: selected.slice(), updatedAt });
+    Object.assign(weekState, { candidates: candidates.slice(), picks: selected.slice(), ...readNotes(), updatedAt });
     loadedUpdatedAt = updatedAt; originallySaved = true; savedPicks = selected.slice(); savedCandidates = candidates.slice();
     renderList(); updateSaveState();
     shuffleButton.disabled = false;
@@ -418,10 +473,12 @@ function renderWeekSection({
       takeCount: Math.max(CANDIDATES_PER_WEEK - kept.length, 0),
     });
     candidates = [...kept, ...replacements];
-    const updatedAt = await saveWeekState(db, weekKey, { candidates, shuffleNonce: nextNonce, picks: kept }, staleCheck.updatedAt);
-    Object.assign(weekState, { candidates: candidates.slice(), shuffleNonce: nextNonce, picks: kept.slice(), updatedAt });
+    const updatedAt = await saveWeekState(db, weekKey, { candidates, shuffleNonce: nextNonce, picks: kept, ...readNotes() }, staleCheck.updatedAt);
+    Object.assign(weekState, { candidates: candidates.slice(), shuffleNonce: nextNonce, picks: kept.slice(), ...readNotes(), updatedAt });
     loadedUpdatedAt = updatedAt; originallySaved = true; savedPicks = kept.slice(); savedCandidates = candidates.slice(); hasUserChanges = false;
     renderList(); updateSaveState();
+    shuffleButton.disabled = false;
+    shuffleButton.textContent = "Shuffle";
     } catch (err) {
       shuffleButton.disabled = false;
       shuffleButton.textContent = "Shuffle";

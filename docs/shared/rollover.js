@@ -1,3 +1,4 @@
+import { formatWeekNotes } from "./weekNotes.js";
 // Pure computation of what a week-rollover pass should do, given all weekState docs.
 // Callers (frontend or a function) are responsible for actually writing the results.
 //
@@ -19,13 +20,14 @@ export function computeRollover(weekStates, currentWeekKey, now = new Date()) {
     // untouched until their own week actually arrives.
     if (week.weekKey >= currentWeekKey || week.archived) continue;
 
-    if (week.picks && week.picks.length > 0) {
+    if (week.picks?.length > 0 || formatWeekNotes(week)) {
       historyAppends.push({
         weekKey: week.weekKey,
-        recipeUids: week.picks.slice(),
+        recipeUids: (week.picks || []).slice(),
+        ...(formatWeekNotes(week) ? { note: week.note || "", dayNotes: week.dayNotes || [] } : {}),
         loggedAt: now.toISOString(),
       });
-      for (const uid of week.picks) {
+      for (const uid of week.picks || []) {
         lastCookedUpdates[uid] = week.weekKey;
       }
     }

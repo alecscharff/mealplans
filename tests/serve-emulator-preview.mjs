@@ -49,7 +49,7 @@ source=source.slice(0,sessionStart)+`  const db = getFirestore(app);
   document.body.prepend(controls);
   return { db, isHouseholdSignedIn: async () => true, signOut: async () => {} };`+source.slice(sessionEnd);
 await writeFile(join(root,'firestore.js'),source);
-await writeFile(join(root,'functionsClient.js'),'export async function scrapeRecipeUrl(url){return {name:"Emulator imported recipe",sourceUrl:url,servings:4,totalTimeMinutes:20,image:null,ingredientsRaw:"2 eggs",ingredientsParsed:[{raw:"2 eggs",name:"eggs",quantity:2,unit:null}],directions:["Cook eggs."]};}');
+await writeFile(join(root,'functionsClient.js'),'export async function sendMenuTestEmail(){return {email:"preview@example.test"};} export async function scrapeRecipeUrl(url){return {name:"Emulator imported recipe",sourceUrl:url,servings:4,totalTimeMinutes:20,image:null,ingredientsRaw:"2 eggs",ingredientsParsed:[{raw:"2 eggs",name:"eggs",quantity:2,unit:null}],directions:["Cook eggs."]};}');
 const mime={'.js':'text/javascript','.json':'application/json','.css':'text/css','.html':'text/html','.jpg':'image/jpeg','.png':'image/png'};
 http.createServer(async(req,res)=>{
   if (req.method === 'POST' && ['/__preview_rules/deny','/__preview_rules/restore'].includes(req.url)) {
