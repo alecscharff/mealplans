@@ -1,5 +1,6 @@
+import { createAutosave } from "../shared/autosave.js";
 import { WEEK_DAYS } from "../shared/weekNotes.js";
-import { saveWeekState, getWeekState } from "../firestore.js";
+import { saveWeekState } from "../firestore.js";
 import { generateCandidates, replaceCandidate } from "../shared/candidates.js";
 import { deriveTags, PROTEIN_TAG_OPTIONS } from "../shared/recipeTags.js";
 import {
@@ -132,12 +133,12 @@ function renderWeekSection({
   section.append(notes);
   const readNotes = () => ({ note: noteInput.value, dayNotes: dayInputs.map(input => input.value) });
   for (const input of [noteInput, ...dayInputs]) {
-    input.addEventListener("input", () => { hasUserChanges = true; updateSaveState(); });
+    input.addEventListener("input", () => { queueSave(600); });
   }
 
   const saveButton = document.createElement("button");
   saveButton.type = "button";
-  saveButton.textContent = "Save suggested picks";
+  saveButton.textContent = "Use these suggestions";
   saveButton.className = "pick-button";
   section.appendChild(saveButton);
   const saveStatus = document.createElement("p");
@@ -145,22 +146,45 @@ function renderWeekSection({
   saveStatus.setAttribute("role", "status");
   section.appendChild(saveStatus);
 
-  // Two picks are always shown as selected — either confirmed picks, or (before a save)
-  // the top two candidates as a default suggestion — plus alternatives to swap in.
-  // `candidates` is a local working copy so "pick from all recipes" can swap an
-  // alternative slot for a manually-chosen recipe without touching Firestore until Save.
+  // Show saved picks (including an explicitly empty plan), or two unconfirmed suggestions.
+  // Notes and alternative shuffles do not implicitly confirm those suggestions.
   let candidates = weekState.candidates.slice();
-  let selected = weekState.picks.length > 0 ? weekState.picks.slice() : candidates.slice(0, 2);
+  let selected = weekState.planConfirmed || weekState.picks.length > 0 ? weekState.picks.slice() : candidates.slice(0, 2);
   let hasUserChanges = false;
-  registerDirtyCheck?.(() => !hasUserChanges || confirm(`The plan for ${formatWeekLabel(weekKey)} have unsaved changes. Leave without saving?`), () => hasUserChanges);
-  let originallySaved = weekState.picks.length > 0;
-  let savedPicks = weekState.picks.slice();
-  let savedCandidates = weekState.candidates.slice();
+  let originallySaved = !!weekState.planConfirmed || weekState.picks.length > 0;
+  let shuffleNonce = weekState.shuffleNonce || 0;
+  let loadedUpdatedAt = weekState.updatedAt || null;
+  let saveState = { pending: false, saving: false, error: null };
+  saveStatus.tabIndex = -1;
+  const autosave = createAutosave({
+    save: snapshot => saveWeekState(db, weekKey, snapshot, loadedUpdatedAt),
+    onSaved(snapshot, updatedAt) {
+      loadedUpdatedAt = updatedAt;
+      Object.assign(weekState, snapshot, { updatedAt });
+    },
+    onState(state) { saveState = state; hasUserChanges = state.pending; updateSaveState(); },
+  });
+  registerDirtyCheck?.(() => {
+    if (!hasUserChanges) return true;
+    if (saveState.saving) { alert("Your plan is still saving. Please wait before leaving."); return false; }
+    if (!confirm("Your latest changes have not saved. Leave without saving them?")) return false;
+    autosave.dispose();
+    return true;
+  }, () => hasUserChanges);
+  function queueSave(delay = 0) {
+    autosave.schedule({ candidates, picks: originallySaved ? selected : [], planConfirmed: originallySaved,
+      shuffleNonce, ...readNotes() }, delay);
+  }
   function updateSaveState() {
-    const changed = hasUserChanges || (originallySaved && (selected.join("|") !== savedPicks.join("|") || candidates.join("|") !== savedCandidates.join("|")));
-    saveButton.disabled = !changed && originallySaved;
-    saveButton.textContent = changed ? "Save plan" : originallySaved ? "Saved" : "Save suggested picks";
-    saveStatus.textContent = changed ? "Unsaved changes" : originallySaved ? "Saved for this week" : "Suggested picks · not saved yet";
+    const conflict = saveState.error?.code === "week-conflict";
+    saveButton.hidden = originallySaved && !saveState.error;
+    saveButton.disabled = saveState.saving;
+    saveButton.textContent = conflict ? "Reload latest plan" : saveState.error ? "Retry save" : "Use these suggestions";
+    saveStatus.textContent = conflict
+      ? "This week changed on another device. Your edits are still here, but weren't saved. Reload to review the latest plan."
+      : saveState.error ? "Couldn't save. Your changes are still here—retry when you're connected."
+      : saveState.pending ? "Saving…"
+      : originallySaved ? "Saved" : "Suggested meals · choose Use these suggestions to confirm. Notes save automatically.";
   }
   function replaceSelected(index, uid) {
     const previous = selected[index];
@@ -171,7 +195,8 @@ function renderWeekSection({
     function apply(index) {
       if (index == null) togglePick(uid);
       else replaceSelected(index, uid);
-      hasUserChanges = true;
+      originallySaved = true;
+      queueSave();
       renderList();
       if (!picker.hidden) renderPicker();
       updateSaveState();
@@ -194,7 +219,7 @@ function renderWeekSection({
       const label = document.createElement("span");
       label.textContent = recipesByUid[pickedUid]?.name || "Selected meal";
       button.append(label);
-      button.onclick = () => { dialog.close(); apply(index); saveButton.focus(); };
+      button.onclick = () => { dialog.close(); apply(index); saveStatus.focus(); };
       dialog.append(button);
     });
     const cancel = document.createElement("button");
@@ -208,23 +233,6 @@ function renderWeekSection({
     dialog.showModal();
   }
   let pickerFilters = { query: "", protein: "", maxMinutes: null };
-
-  // Snapshot of when this week's data was as of this page load. There's no live sync
-  // (no realtime listener) — if another tab or device saves this same week before this
-  // one does, this tab's in-memory picks are stale and would silently clobber that
-  // other save with old data. Checked immediately before Save/Shuffle actually write.
-  let loadedUpdatedAt = weekState.updatedAt || null;
-
-  async function warnIfStale() {
-    const latest = await getWeekState(db, weekKey);
-    const latestUpdatedAt = latest?.updatedAt || null;
-    if (latestUpdatedAt === loadedUpdatedAt) return { ok: true, updatedAt: latestUpdatedAt };
-    if (!confirm(
-      "This week's picks were changed elsewhere (another tab or device) since this page loaded. " +
-        "Save anyway and overwrite that change? Choose Cancel, then reload this page, to see the latest picks first."
-    )) return { ok: false };
-    return { ok: true, updatedAt: latestUpdatedAt };
-  }
 
   // Recipes already showing up in any other displayed week — excluded from both the
   // shuffle pool and the all-recipes picker, so nothing can be suggested/picked twice
@@ -300,7 +308,7 @@ function renderWeekSection({
       const button = document.createElement("button");
       button.type = "button";
       button.className = "pick-button" + (selected.includes(uid) ? " selected" : "");
-      button.textContent = selected.includes(uid) ? (!originallySaved && !hasUserChanges ? "Suggested" : "Picked") : selected.length >= 2 ? "Replace…" : "Pick";
+      button.textContent = selected.includes(uid) ? (!originallySaved ? "Suggested" : "Picked") : selected.length >= 2 ? "Replace…" : "Pick";
       button.setAttribute("aria-pressed", String(selected.includes(uid)));
       button.addEventListener("click", () => chooseRecipe(uid, button));
       card.appendChild(button);
@@ -427,63 +435,33 @@ function renderWeekSection({
     renderPicker();
   });
 
-  saveButton.addEventListener("click", async () => {
-    saveButton.disabled = true;
-    saveButton.textContent = "Saving…";
-    try {
-    const staleCheck = await warnIfStale();
-    if (!staleCheck.ok) {
-      saveButton.disabled = false;
-      saveButton.textContent = "Save picks";
+  saveButton.addEventListener("click", () => {
+    if (saveState.error?.code === "week-conflict") {
+      if (confirm("Discard your unsaved changes and reload the latest plan?")) {
+        autosave.dispose(); hasUserChanges = false; location.reload();
+      }
       return;
     }
-    const updatedAt = await saveWeekState(db, weekKey, { candidates, picks: selected, ...readNotes() }, staleCheck.updatedAt);
-    hasUserChanges = false;
-    Object.assign(weekState, { candidates: candidates.slice(), picks: selected.slice(), ...readNotes(), updatedAt });
-    loadedUpdatedAt = updatedAt; originallySaved = true; savedPicks = selected.slice(); savedCandidates = candidates.slice();
-    renderList(); updateSaveState();
-    shuffleButton.disabled = false;
-    shuffleButton.textContent = "Shuffle";
-    } catch (err) {
-      saveStatus.textContent = `Couldn't save picks: ${err.message}. Your changes are still here; try again.`;
-      saveButton.disabled = false;
-      saveButton.textContent = "Retry save";
-    }
+    if (saveState.error) { autosave.retry(); return; }
+    originallySaved = true;
+    queueSave();
+    renderList();
+    if (!picker.hidden) renderPicker();
   });
 
-  shuffleButton.addEventListener("click", async () => {
-    shuffleButton.disabled = true;
-    shuffleButton.textContent = "Shuffling…";
-    try {
-    const staleCheck = await warnIfStale();
-    if (!staleCheck.ok) {
-      shuffleButton.disabled = false;
-      shuffleButton.textContent = "Shuffle";
-      return;
-    }
-    // Keep whatever is currently picked in place — only the unpicked alternatives get
-    // reshuffled. Exclude recipes already showing up in any other displayed week, the
-    // kept picks themselves, and recipes marked skipped (see shared/recipeFilter.js).
+  shuffleButton.addEventListener("click", () => {
+    // Shuffling alternatives does not confirm the initial suggestions.
     const kept = selected.slice(0, CANDIDATES_PER_WEEK);
     const excluded = new Set([...usedByOtherWeeks(), ...kept]);
-    const availableRecipes = recipeCache.recipes.filter((r) => isActiveForSuggestions(r) && !excluded.has(r.uid));
-    const nextNonce = (weekState.shuffleNonce || 0) + 1;
-    hasUserChanges = true;
-    const replacements = generateCandidates(availableRecipes, weekKey, candidateSeed(settings, nextNonce), {
+    const availableRecipes = recipeCache.recipes.filter(r => isActiveForSuggestions(r) && !excluded.has(r.uid));
+    shuffleNonce++;
+    const replacements = generateCandidates(availableRecipes, weekKey, candidateSeed(settings, shuffleNonce), {
       takeCount: Math.max(CANDIDATES_PER_WEEK - kept.length, 0),
     });
     candidates = [...kept, ...replacements];
-    const updatedAt = await saveWeekState(db, weekKey, { candidates, shuffleNonce: nextNonce, picks: kept, ...readNotes() }, staleCheck.updatedAt);
-    Object.assign(weekState, { candidates: candidates.slice(), shuffleNonce: nextNonce, picks: kept.slice(), ...readNotes(), updatedAt });
-    loadedUpdatedAt = updatedAt; originallySaved = true; savedPicks = kept.slice(); savedCandidates = candidates.slice(); hasUserChanges = false;
-    renderList(); updateSaveState();
-    shuffleButton.disabled = false;
-    shuffleButton.textContent = "Shuffle";
-    } catch (err) {
-      shuffleButton.disabled = false;
-      shuffleButton.textContent = "Shuffle";
-      saveStatus.textContent = `Couldn't save shuffled picks: ${err.message}. Try again.`;
-    }
+    queueSave();
+    renderList();
+    if (!picker.hidden) renderPicker();
   });
 
   renderList();
