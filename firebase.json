@@ -9,7 +9,7 @@
       "codebase": "default",
       "runtime": "nodejs22",
       "predeploy": [
-        "mkdir -p functions/shared && cp docs/shared/ingredientParser.js docs/shared/recipeScrape.js docs/shared/packagingUnits.js docs/shared/canonicalUrl.js docs/shared/weekKey.js docs/shared/candidates.js docs/shared/prng.js docs/shared/menuEmail.js functions/shared/"
+        "mkdir -p functions/shared && cp docs/shared/ingredientParser.js docs/shared/recipeScrape.js docs/shared/packagingUnits.js docs/shared/canonicalUrl.js docs/shared/weekKey.js docs/shared/candidates.js docs/shared/prng.js docs/shared/menuEmail.js docs/shared/weekNotes.js functions/shared/"
       ]
     }
   ]

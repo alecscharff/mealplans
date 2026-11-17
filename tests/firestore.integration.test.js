@@ -101,6 +101,18 @@ test('anonymous, unrelated and unverified users cannot read or change the househ
   }
 });
 
+test('day assignments save and clear without replacing notes or grocery checks', async () => {
+  const week = '2026-11-15';
+  const first = await saveWeekState(a, week, {picks:['a'], dayAssignments:[{uid:'a',day:1}],note:'Leftovers',groceryChecks:{eggs:true}}, null);
+  const second = await saveWeekState(a, week, {dayAssignments:[]}, first);
+  const state = await getWeekState(a, week);
+  assert.deepEqual(state.dayAssignments,[]);
+  assert.equal(state.note,'Leftovers');
+  assert.deepEqual(state.groceryChecks,{eggs:true});
+  await assert.rejects(saveWeekState(b, week, {picks:['b'],dayAssignments:[{uid:'b',day:2}]},first), {code:'week-conflict'});
+  assert.equal((await getWeekState(a,week)).updatedAt,second);
+});
+
 test('disconnected transactional saves reject and succeed after reconnect', {timeout:60000}, async()=>{
   let disconnected=false;
   const sockets=new Set();

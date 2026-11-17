@@ -1,5 +1,5 @@
 import { createAutosave } from "../shared/autosave.js";
-import { WEEK_DAYS } from "../shared/weekNotes.js";
+import { WEEK_DAYS, assignedDay, dayPlan, replaceMealDay } from "../shared/weekNotes.js";
 import { saveWeekState } from "../firestore.js";
 import { generateCandidates, replaceCandidate } from "../shared/candidates.js";
 import { deriveTags, PROTEIN_TAG_OPTIONS } from "../shared/recipeTags.js";
@@ -95,6 +95,25 @@ function renderWeekSection({
   headerRow.appendChild(headerActions);
   section.appendChild(headerRow);
 
+  const undoRow = document.createElement("div");
+  undoRow.className = "plan-undo";
+  undoRow.hidden = true;
+  const undoMessage = document.createElement("span");
+  undoMessage.setAttribute("role", "status");
+  const undoButton = document.createElement("button");
+  undoButton.type = "button";
+  undoButton.className = "pick-button";
+  undoButton.textContent = "Undo";
+  undoRow.append(undoMessage, undoButton);
+  section.append(undoRow);
+  const overview = document.createElement("details");
+  overview.className = "week-overview";
+  const overviewTitle = document.createElement("summary");
+  overviewTitle.textContent = "Week at a glance";
+  const overviewList = document.createElement("dl");
+  overview.append(overviewTitle, overviewList);
+  section.append(overview);
+
   const list = document.createElement("div");
   section.appendChild(list);
 
@@ -133,7 +152,7 @@ function renderWeekSection({
   section.append(notes);
   const readNotes = () => ({ note: noteInput.value, dayNotes: dayInputs.map(input => input.value) });
   for (const input of [noteInput, ...dayInputs]) {
-    input.addEventListener("input", () => { queueSave(600); });
+    input.addEventListener("input", () => { renderOverview(); queueSave(600); });
   }
 
   const saveButton = document.createElement("button");
@@ -150,6 +169,41 @@ function renderWeekSection({
   // Notes and alternative shuffles do not implicitly confirm those suggestions.
   let candidates = weekState.candidates.slice();
   let selected = weekState.planConfirmed || weekState.picks.length > 0 ? weekState.picks.slice() : candidates.slice(0, 2);
+  let dayAssignments = Array.isArray(weekState.dayAssignments) ? structuredClone(weekState.dayAssignments) : [];
+  overview.open = dayAssignments.length > 0 || (weekState.dayNotes || []).some(Boolean);
+  let undoSnapshot = null, undoTimer;
+  function clearUndo() {
+    clearTimeout(undoTimer);
+    undoSnapshot = null;
+    undoRow.hidden = true;
+  }
+  function rememberPlan(message) {
+    clearUndo();
+    undoSnapshot = structuredClone({ candidates, selected, dayAssignments, originallySaved, shuffleNonce });
+    undoMessage.textContent = message;
+    undoRow.hidden = false;
+    undoTimer = setTimeout(clearUndo, 15000);
+  }
+  undoButton.onclick = () => {
+    if (!undoSnapshot) return;
+    ({ candidates, selected, dayAssignments, originallySaved, shuffleNonce } = undoSnapshot);
+    clearUndo();
+    queueSave();
+    renderList();
+    if (!picker.hidden) renderPicker();
+    saveStatus.focus();
+  };
+  function renderOverview() {
+    overviewList.replaceChildren();
+    const rows = dayPlan({ picks: originallySaved ? selected : [], dayAssignments, ...readNotes() }, recipesByUid);
+    for (const row of rows) {
+      const term = document.createElement("dt");
+      term.textContent = row.day;
+      const description = document.createElement("dd");
+      description.textContent = [...row.meals, row.note].filter(Boolean).join(" · ") || "Not scheduled";
+      overviewList.append(term, description);
+    }
+  }
   let hasUserChanges = false;
   let originallySaved = !!weekState.planConfirmed || weekState.picks.length > 0;
   let shuffleNonce = weekState.shuffleNonce || 0;
@@ -173,7 +227,7 @@ function renderWeekSection({
   }, () => hasUserChanges);
   function queueSave(delay = 0) {
     autosave.schedule({ candidates, picks: originallySaved ? selected : [], planConfirmed: originallySaved,
-      shuffleNonce, ...readNotes() }, delay);
+      shuffleNonce, dayAssignments: dayAssignments.filter(entry => selected.includes(entry.uid)), ...readNotes() }, delay);
   }
   function updateSaveState() {
     const conflict = saveState.error?.code === "week-conflict";
@@ -188,11 +242,13 @@ function renderWeekSection({
   }
   function replaceSelected(index, uid) {
     const previous = selected[index];
+    dayAssignments = replaceMealDay(dayAssignments, previous, uid);
     selected[index] = uid;
     candidates = replaceCandidate(candidates, previous, uid);
   }
   function chooseRecipe(uid, trigger) {
     function apply(index) {
+      rememberPlan(index == null ? "Meal selection changed" : "Meal replaced");
       if (index == null) togglePick(uid);
       else replaceSelected(index, uid);
       originallySaved = true;
@@ -243,6 +299,7 @@ function renderWeekSection({
 
   function togglePick(uid) {
     if (selected.includes(uid)) {
+      dayAssignments = dayAssignments.filter(entry => entry.uid !== uid);
       selected = selected.filter((id) => id !== uid);
       return;
     }
@@ -258,6 +315,7 @@ function renderWeekSection({
   }
 
   function renderList() {
+    renderOverview();
     list.innerHTML = "";
     for (const uid of [...selected, ...candidates.filter(id => !selected.includes(id))]) {
       const recipe = recipesByUid[uid];
@@ -302,6 +360,28 @@ function renderWeekSection({
         badge.className = "badge badge-alt";
         badge.textContent = "alternative";
         info.appendChild(badge);
+      }
+      if (selected.includes(uid)) {
+        const dayLabel = document.createElement("label");
+        dayLabel.className = "meal-day";
+        dayLabel.textContent = "Day (optional)";
+        const daySelect = document.createElement("select");
+        daySelect.setAttribute("aria-label", `Day for ${recipe.name}`);
+        daySelect.add(new Option("Any day", ""));
+        WEEK_DAYS.forEach((day, index) => daySelect.add(new Option(day, String(index))));
+        const day = assignedDay(dayAssignments, uid);
+        daySelect.value = day == null ? "" : String(day);
+        daySelect.onchange = () => {
+          clearUndo();
+          dayAssignments = dayAssignments.filter(entry => entry.uid !== uid);
+          if (daySelect.value !== "") dayAssignments.push({ uid, day: Number(daySelect.value) });
+          originallySaved = true;
+          overview.open = true;
+          queueSave();
+          renderList();
+        };
+        dayLabel.append(daySelect);
+        info.append(dayLabel);
       }
       card.appendChild(info);
 
@@ -443,6 +523,7 @@ function renderWeekSection({
       return;
     }
     if (saveState.error) { autosave.retry(); return; }
+    clearUndo();
     originallySaved = true;
     queueSave();
     renderList();
@@ -450,6 +531,7 @@ function renderWeekSection({
   });
 
   shuffleButton.addEventListener("click", () => {
+    rememberPlan("Alternatives shuffled");
     // Shuffling alternatives does not confirm the initial suggestions.
     const kept = selected.slice(0, CANDIDATES_PER_WEEK);
     const excluded = new Set([...usedByOtherWeeks(), ...kept]);

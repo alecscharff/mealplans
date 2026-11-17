@@ -25,6 +25,7 @@ export function computeRollover(weekStates, currentWeekKey, now = new Date()) {
         weekKey: week.weekKey,
         recipeUids: (week.picks || []).slice(),
         ...(formatWeekNotes(week) ? { note: week.note || "", dayNotes: week.dayNotes || [] } : {}),
+        ...(week.dayAssignments?.length ? { dayAssignments: structuredClone(week.dayAssignments) } : {}),
         loggedAt: now.toISOString(),
       });
       for (const uid of week.picks || []) {

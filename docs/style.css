@@ -822,3 +822,13 @@ form.settings-form[hidden] { display: none !important; }
 }
 .replace-option:hover { border-color: var(--sage); }
 .replace-option:focus-visible { outline: 3px solid var(--sage); outline-offset: 2px; }
+
+.plan-undo { display: flex; align-items: center; gap: 0.75rem; margin: 0.75rem 0; }
+.plan-undo[hidden] { display: none; }
+.meal-day { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.7rem; font-size: 0.9rem; }
+.meal-day select { font: inherit; color: var(--ink); background: var(--paper); padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); min-height: 44px; }
+.week-overview { margin: 1rem 0; }
+.week-overview summary { cursor: pointer; font-weight: 600; padding: 0.5rem 0; }
+.week-overview dl { display: grid; grid-template-columns: minmax(6rem, auto) 1fr; gap: 0.7rem 1rem; }
+.week-overview dt { font-weight: 600; }
+.week-overview dd { margin: 0; overflow-wrap: anywhere; }

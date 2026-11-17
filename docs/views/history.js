@@ -1,4 +1,4 @@
-import { formatWeekNotes } from "../shared/weekNotes.js";
+import { formatWeekNotes, assignedDay, WEEK_DAYS } from "../shared/weekNotes.js";
 import { formatWeekLabel } from "./weekLabel.js";
 import { createRecipeThumb } from "./recipeImage.js";
 
@@ -51,7 +51,8 @@ export function renderHistory(container, ctx) {
         const link = document.createElement("button");
         link.type = "button";
         link.className = "recipe-name-link";
-        link.textContent = recipe.name;
+        const day = assignedDay(entry.dayAssignments, recipe.uid);
+        link.textContent = `${day == null ? "" : `${WEEK_DAYS[day]}: `}${recipe.name}`;
         link.addEventListener("click", () => navigate("detail", { uid: recipe.uid, from: "history", recipeSnapshot: recipesByUid[recipe.uid] ? null : recipe }));
         chip.appendChild(link);
 

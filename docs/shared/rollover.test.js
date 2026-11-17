@@ -77,3 +77,8 @@ test("rollover retains weekly and ordered day notes even without recipe picks", 
   assert.deepEqual(result.historyAppends[0].recipeUids, []);
   assert.deepEqual(result.lastCookedUpdates, {});
 });
+
+test("rollover preserves meal days independently of notes", () => {
+  const result = computeRollover([{weekKey:'2026-07-05',picks:['r1'],dayAssignments:[{uid:'r1',day:1}]}], '2026-07-12');
+  assert.deepEqual(result.historyAppends[0].dayAssignments,[{uid:'r1',day:1}]);
+});

@@ -1,3 +1,4 @@
+import { weeklyEmailPlan, replaceMealDay } from "./shared/weekNotes.js";
 import { createHash, randomBytes } from "node:crypto";
 import { defineSecret, defineString } from "firebase-functions/params";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
@@ -97,16 +98,15 @@ export const sendWeeklyMenu = onSchedule({
       }
       const state = stored.data();
       const recipes = new Map((cache.data()?.recipes || []).map((recipe) => [recipe.uid, recipe]));
-      const picked = state?.picks?.length > 0;
-      const ids = picked ? state.picks : (state?.candidates || []).slice(0, 2);
-      const names = ids.map((id) => recipes.get(id)?.name).filter(Boolean);
+      const picked = !!state?.planConfirmed || state?.picks?.length > 0;
+      const ids = picked ? (state.picks || []) : (state?.candidates || []).slice(0, 2);
       const alternatives = (state?.candidates || []).filter((id) => !ids.includes(id))
         .map((id) => recipes.get(id)).filter((recipe) => recipe && !recipe.skipped).map((recipe) => recipe.name);
       tx.create(deliveryRef, { week, status: "claimed", createdAt: new Date() });
       if (mode === "replies") {
         tx.create(threadRef, { email, week, sentVersion: state?.updatedAt || null, modeVersion });
       }
-      return { mode, modeVersion, names, alternatives, picked };
+      return { mode, modeVersion, alternatives, planText: weeklyEmailPlan(state, Object.fromEntries(recipes)) };
     });
     if (!delivery) continue;
     const latestSettings = (await settingsRef(db).get()).data();
@@ -118,14 +118,11 @@ export const sendWeeklyMenu = onSchedule({
     const replyTo = delivery.mode === "replies"
       ? `${token}@${replyMailbox().split("@").at(-1)}`
       : householdEmails[0];
-    const meals = delivery.names.length
-      ? `${delivery.picked ? "Planned meals" : "Suggested meals"}\n${delivery.names.map((name) => `• ${name}`).join("\n")}`
-      : "There are no meals on the plan yet.";
     const alternatives = delivery.alternatives.length ? `\n\nAlternatives: ${delivery.alternatives.join(", ")}` : "";
     try {
       await sendEmail({
         To: email, ReplyTo: replyTo, Subject: `Sunday Menu | Week of ${week}`,
-        TextBody: `${meals}${alternatives}\n\nView or change this week’s menu\n${link(week)}\n\nReply with a swap or a recipe idea.`,
+        TextBody: `${delivery.planText}${alternatives}\n\nView or change this week’s menu\n${link(week)}\n\nReply with a swap or a recipe idea.`,
       });
     } catch (error) {
       await deliveryRef.update({ status: "send-failed" });
@@ -212,6 +209,8 @@ export const receiveMenuReply = onRequest({ secrets: [resendKey, webhookSecret, 
         tx.update(weekRef, {
           candidates: replaceCandidate(state.candidates, outgoing.uid, incoming.uid),
           picks: picks.map(({ uid }) => uid === outgoing.uid ? incoming.uid : uid),
+          dayAssignments: replaceMealDay(state.dayAssignments, outgoing.uid, incoming.uid),
+          planConfirmed: true,
           updatedAt,
         });
         tx.update(threadRef, { sentVersion: updatedAt });
